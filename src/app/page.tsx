@@ -3,8 +3,9 @@ import React, { useState, useEffect } from "react";
 import { useUserAuth } from "./context/AuthContext";
 import { useRouter } from "next/navigation";
 import { FcGoogle } from "react-icons/fc";
-import { FaCode, FaUsers, FaRocket, FaChartLine, FaGithub, FaUser } from "react-icons/fa";
+import { FaCode, FaUsers, FaRocket, FaChartLine, FaGithub, FaUser, FaSpinner } from "react-icons/fa";
 import { FaLightbulb, FaRegLightbulb } from "react-icons/fa";
+import Link from "next/link";
 
 const HomePage = () => {
   const { user, googleSignIn } = useUserAuth();
@@ -107,19 +108,32 @@ const HomePage = () => {
                 CodeCollab is the ultimate platform for developers to collaborate in real-time, 
                 share projects, and build amazing applications together.
               </p>
+              {user && (
+                <div  className="mt-10 flex flex-col sm:flex-row gap-4">
+                  <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">
+                    Welcome,<span className="text-indigo-600"> {user.displayName} </span>
+                  </h2>
+                </div>
+              )}
               <div className="mt-10 flex flex-col sm:flex-row gap-4">
-                <button
-                  onClick={handleSignIn}
-                  disabled={isLoading}
-                  className="px-8 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-medium rounded-lg shadow-lg hover:from-blue-700 hover:to-indigo-700 transition-all transform hover:-translate-y-1 flex items-center justify-center gap-3"
-                >
-                  {user ? `Welcome, ${user.displayName}` : (
-                    <>
-                      <FcGoogle className="text-xl bg-white rounded-full" />
-                      Get Started with Google
-                    </>
-                  )}
-                </button>
+                {!user && (
+                  <button
+                    className="px-8 py-4 bg-indigo-600 text-white font-medium rounded-lg shadow-lg hover:bg-indigo-700 transition"
+                    onClick={handleSignIn}
+                  >
+                    {isLoading ? (
+                      <div className="flex items-center justify-center gap-2">
+                        <FaSpinner className="animate-spin" />
+                        Loading...
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center gap-2">
+                        <FcGoogle className="text-xl" />
+                        Get Started with Google
+                      </div>
+                    )}
+                  </button>
+                )}
                 <button className="px-8 py-4 bg-white dark:bg-gray-800 text-gray-800 dark:text-white font-medium rounded-lg shadow-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition flex items-center justify-center gap-2">
                   <FaGithub />
                   View on GitHub
@@ -161,11 +175,11 @@ const HomePage = () => {
       </section>
 
       {/* Stats Section */}
-      <section className="py-12 bg-gradient-to-r from-blue-500 to-indigo-600 dark:from-blue-700 dark:to-indigo-800 text-white">
+      <section className="py-12 text-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {stats.map((stat, index) => (
-              <div key={index} className="text-center">
+              <div key={index} className="text-center border border-gray-200 dark:border-gray-700 rounded-lg p-6">
                 <div className="text-4xl font-bold">{stat.value}</div>
                 <div className="mt-2 text-xl opacity-90">{stat.label}</div>
               </div>
@@ -311,20 +325,18 @@ const HomePage = () => {
           <p className="text-xl text-blue-100 max-w-3xl mx-auto mb-10">
             Join thousands of developers building amazing things together with CodeCollab
           </p>
-          <button
-            onClick={handleSignIn}
-            disabled={isLoading}
-            className="px-8 py-4 bg-white text-indigo-600 font-bold rounded-lg shadow-lg hover:bg-gray-100 transition flex items-center justify-center gap-3 mx-auto"
-          >
-            {isLoading ? (
-              <div className="w-5 h-5 border-t-2 border-indigo-600 border-solid rounded-full animate-spin"></div>
-            ) : (
-              <>
-                <FcGoogle className="text-xl" />
-                Get Started Free
-              </>
-            )}
-          </button>
+          {!user ? (
+            <button
+              onClick={googleSignIn}
+              className="bg-white hover:bg-gray-100 text-indigo-600 font-bold py-3 px-6 rounded-lg shadow-md transition duration-300"
+            >
+              Sign up with Google
+            </button>
+          ) : (
+            <Link href="/dashboard" className="bg-white hover:bg-gray-100 text-indigo-600 font-bold py-3 px-6 rounded-lg shadow-md transition duration-300">
+              Go to Dashboard
+            </Link>
+          )}
           <p className="mt-4 text-blue-200">No credit card required • Free forever plan</p>
         </div>
       </section>

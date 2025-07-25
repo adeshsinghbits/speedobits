@@ -2,18 +2,13 @@
 import React, { useState, useEffect } from "react";
 import { useUserAuth } from "../context/AuthContext";
 import { useRouter, usePathname } from "next/navigation";
-import { 
-  FaHome, 
-  FaEdit, 
-  FaUsers, 
-  FaChartBar, 
-  FaSun, 
-  FaMoon,
+import {
   FaSignOutAlt,
   FaChevronDown,
   FaTimes,
   FaBars
 } from "react-icons/fa";
+import Image from "next/image";
 
 const Navbar = () => {
   const { user, logOut } = useUserAuth();
@@ -21,24 +16,6 @@ const Navbar = () => {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [theme, setTheme] = useState<"light" | "dark">("light");
-  const [mounted, setMounted] = useState(false);
-
-  // Initialize theme
-  useEffect(() => {
-    const storedTheme = localStorage.getItem("theme") as "light" | "dark" || "light";
-    setTheme(storedTheme);
-    document.documentElement.classList.toggle("dark", storedTheme === "dark");
-    setMounted(true);
-  }, []);
-
-  // Toggle theme
-  const toggleTheme = () => {
-    const newTheme = theme === "light" ? "dark" : "light";
-    setTheme(newTheme);
-    localStorage.setItem("theme", newTheme);
-    document.documentElement.classList.toggle("dark", newTheme === "dark");
-  };
 
   // Handle logout
   const handleLogout = async () => {
@@ -53,10 +30,8 @@ const Navbar = () => {
 
   // Navigation items
   const navItems = [
-    { name: "Home", path: "/", icon: <FaHome className="text-lg" /> },
-    { name: "Editor", path: "/editor", icon: <FaEdit className="text-lg" /> },
-    { name: "Collab", path: "/collab", icon: <FaUsers className="text-lg" /> },
-    { name: "Dashboard", path: "/dashboard", icon: <FaChartBar className="text-lg" /> },
+    { name: "Editor", path: "/editor", },
+    { name: "Library", path: "/snippets", },
   ];
 
   // Close dropdown when clicking outside
@@ -70,8 +45,6 @@ const Navbar = () => {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [isDropdownOpen]);
-
-  if (!mounted) return null;
 
   return (
     <nav className="bg-white dark:bg-gray-800 shadow-md fixed w-full z-50">
@@ -100,11 +73,10 @@ const Navbar = () => {
                   onClick={() => router.push(item.path)}
                   className={`${
                     pathname === item.path
-                      ? "border-indigo-500 text-gray-900 dark:text-white"
-                      : "border-transparent text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100"
-                  } cursor-pointer inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors duration-200`}
+                      ? "bg-gray-600 text-gray-900 dark:text-white"
+                      : "bg-transparent text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100"
+                  } py-2 px-4 cursor-pointer rounded-2xl text-sm font-medium transition-colors duration-200`}
                 >
-                  <span className="mr-2">{item.icon}</span>
                   {item.name}
                 </a>
               ))}
@@ -113,18 +85,6 @@ const Navbar = () => {
 
           {/* Right section - Theme toggle and Profile */}
           <div className="flex items-center">
-            {/* Theme Toggle */}
-            <button
-              onClick={toggleTheme}
-              className="p-2 rounded-full text-gray-500 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none transition-colors"
-              aria-label="Toggle theme"
-            >
-              {theme === "light" ? (
-                <FaMoon className="h-5 w-5" />
-              ) : (
-                <FaSun className="h-5 w-5 text-yellow-400" />
-              )}
-            </button>
 
             {/* Profile dropdown */}
             {user ? (
@@ -137,7 +97,9 @@ const Navbar = () => {
                 >
                   <span className="sr-only">Open user menu</span>
                   {user.photoURL ? (
-                    <img
+                    <Image
+                      width={32}
+                      height={32}
                       className="h-8 w-8 rounded-full border-2 border-indigo-500"
                       src={user.photoURL}
                       alt={user.displayName || "User"}
@@ -174,9 +136,9 @@ const Navbar = () => {
                     </a>
                     <a
                       onClick={handleLogout}
-                      className="cursor-pointer block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"
+                      className="cursor-pointer block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 items-center"
                     >
-                      <FaSignOutAlt className="mr-2" />
+                      <FaSignOutAlt className="mr-2 inline-block" />
                       Sign out
                     </a>
                   </div>
@@ -269,7 +231,7 @@ const Navbar = () => {
                 </a>
                 <a
                   onClick={handleLogout}
-                  className="cursor-pointer block px-4 py-2 text-base font-medium text-gray-500 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"
+                  className="cursor-pointer px-4 py-2 text-base font-medium text-gray-500 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"
                 >
                   <FaSignOutAlt className="mr-2" />
                   Sign out

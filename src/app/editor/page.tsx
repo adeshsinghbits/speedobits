@@ -1,13 +1,16 @@
 // app/page.tsx
 "use client";
 import { useState, useRef, useEffect } from 'react';
+import { useUserAuth } from '@/app/context/AuthContext';
 import dynamic from 'next/dynamic';
 import { LANGUAGE_CONFIG } from '@/app/constants';
 import ControlPanel from '@/app/components/ControlPanel';
 import EditorHeader from '@/app/components/EditorHeader';
 import OutputHeader from '@/app/components/OutputHeader';
 import OutputPlaceholder from '@/app/components/OutputPlaceholder';
-
+import { database } from '@/app/firebase/config';
+import { ref, push, serverTimestamp } from 'firebase/database'
+import { toast } from 'react-hot-toast';
 // Dynamically import Monaco Editor
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
   ssr: false,
@@ -19,6 +22,7 @@ const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
 });
 
 export default function CodeEditorPage() {
+  const { user } = useUserAuth();
   const [code, setCode] = useState(LANGUAGE_CONFIG.javascript.starter);
   const [language, setLanguage] = useState('javascript');
   const [output, setOutput] = useState('');
@@ -27,6 +31,40 @@ export default function CodeEditorPage() {
   const [fontSize, setFontSize] = useState(14);
   const editorRef = useRef<any>(null);
   
+  const [isSharing, setIsSharing] = useState(false);
+  const [shareTitle, setShareTitle] = useState('');
+  const [showShareModal, setShowShareModal] = useState(false);
+
+  const shareToCommunity = async () => {
+    if (!user) {
+      alert('Please login to share your code');
+      return;
+    }
+    
+    setIsSharing(true);
+    try {
+      const snippetsRef = ref(database, 'snippets');
+      await push(snippetsRef, {
+        title: shareTitle || 'Untitled Snippet',
+        code,
+        language,
+        userId: user.uid,
+        userName: user.displayName || 'Anonymous',
+        createdAt: serverTimestamp(),
+        likes: 0,
+        views: 0
+      });
+      toast.success('Snippet shared successfully');
+      setShowShareModal(false);
+      setShareTitle('');
+    } catch (error) {
+      console.error('Error sharing snippet:', error);
+      alert('Failed to share snippet');
+    } finally {
+      setIsSharing(false);
+    }
+  };
+
   const languageOptions = Object.entries(LANGUAGE_CONFIG).map(([id, config]) => ({
     id,
     name: config.name
@@ -61,6 +99,7 @@ export default function CodeEditorPage() {
           files: [{ content: code }],
         }),
       });
+      console.log(code, "user",user);
       
       const data = await response.json();
       
@@ -80,6 +119,7 @@ export default function CodeEditorPage() {
       setIsRunning(false);
     }
   };
+
 
   const resetCode = () => {
     if (confirm('Are you sure you want to reset the code to the starter?')) {
@@ -105,6 +145,7 @@ export default function CodeEditorPage() {
               onFontSizeChange={setFontSize}
               languageOptions={languageOptions}
               icons={language.icon}
+              onShare={() => setShowShareModal(true)}
             />
 
             {/* Editor */}
@@ -150,6 +191,37 @@ export default function CodeEditorPage() {
               </div>
             </div>
           </div>
+          {showShareModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+            <div className="bg-gray-800 rounded-xl p-6 w-full max-w-md">
+              <h3 className="text-xl font-bold mb-4">Share to Community</h3>
+              <input
+                type="text"
+                placeholder="Enter snippet title"
+                className="w-full p-3 bg-gray-700 rounded-lg mb-4"
+                value={shareTitle}
+                onChange={(e) => setShareTitle(e.target.value)}
+              />
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={() => setShowShareModal(false)}
+                  className="px-4 py-2 bg-gray-600 rounded-md"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={shareToCommunity}
+                  disabled={isSharing}
+                  className={`px-4 py-2 rounded-md ${
+                    isSharing ? 'bg-green-700' : 'bg-green-600 hover:bg-green-700'
+                  }`}
+                >
+                  {isSharing ? 'Sharing...' : 'Share'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         </div>
       </div>
     </div>

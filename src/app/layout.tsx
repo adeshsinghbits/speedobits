@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { AuthContextProvider } from "./context/AuthContext";
 import Navbar from "./components/Navbar";
+import { Toaster } from "react-hot-toast";
 
 export const metadata: Metadata = {
   title: "Speedobits",
@@ -17,6 +18,7 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <AuthContextProvider>
+          <Toaster />
           <Navbar />
           {children}
         </AuthContextProvider>

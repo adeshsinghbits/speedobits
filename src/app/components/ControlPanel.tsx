@@ -2,7 +2,8 @@
 
 import { Fragment } from 'react';
 import { Menu, Transition } from '@headlessui/react';
-import { FaJava } from 'react-icons/fa';
+import { FaJava, FaShare, FaSpinner } from 'react-icons/fa';
+import { VscRunAll } from "react-icons/vsc";
 import {
   SiJavascript,
   SiPython,
@@ -28,6 +29,7 @@ interface ControlPanelProps {
   fontSize: number;
   onFontSizeChange: (size: number) => void;
   languageOptions: LanguageOption[];
+  onShare: () => void;
 }
 
 // Icons map
@@ -52,12 +54,13 @@ export default function ControlPanel({
   fontSize,
   onFontSizeChange,
   languageOptions,
+  onShare
 }: ControlPanelProps) {
   return (
     <div className="bg-gray-800 rounded-xl p-4 shadow-lg">
       <div className="flex flex-wrap gap-4 items-center">
         {/* Custom Language Dropdown */}
-        <div className="z-50">
+        <div>
           <Menu as="div" className="relative mt-4 inline-block text-left">
             <Menu.Button className="inline-flex items-center gap-2 justify-between w-48 rounded-lg bg-gray-700 px-4 py-2 text-sm font-medium text-white hover:bg-gray-600 focus:outline-none">
               {ICONS[language] && <span className="text-xl">{ICONS[language]}</span>}
@@ -105,7 +108,17 @@ export default function ControlPanel({
                 : 'bg-gray-700 hover:bg-gray-500 hover:scale-[1.03]'
             }`}
           >
-            {isRunning ? 'Running...' : 'Run'}
+            {isRunning ? (
+              <>
+                <FaSpinner className="animate-spin" />
+                Running
+              </>
+            ):(
+              <>
+                <VscRunAll />
+                Run
+              </>
+            )}
           </button>
 
           <button
@@ -113,6 +126,13 @@ export default function ControlPanel({
             className="px-4 py-2 rounded-lg font-medium bg-gray-700 hover:bg-gray-600 hover:scale-[1.03] flex items-center gap-2 transition-all"
           >
             Reset
+          </button>
+          <button
+            className="px-4 py-2 rounded-lg font-medium bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 hover:scale-[1.03] flex items-center gap-2 transition-all"
+            onClick={onShare}
+          > 
+            <FaShare />
+            Share
           </button>
         </div>
 
