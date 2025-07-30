@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {  useNavigate } from 'react-router-dom';
-import { ref, get, remove } from 'firebase/database';
+import { ref, get, remove, update } from 'firebase/database';
 import { database } from '../firebase/config';
 import {
   AppBar,
@@ -36,6 +36,8 @@ import {
 import { FaJava } from 'react-icons/fa';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { atomDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { CiStar } from "react-icons/ci";
+import { FaStar } from "react-icons/fa";
 
 const LANGUAGE_ICONS = {
   javascript: SiJavascript,
@@ -116,11 +118,33 @@ function SnippetsPage() {
     setSnackbarOpen(true);
   };
 
-  const toggleStar = () => {
-    // Implement your star/favorite functionality here
-    setSnackbarMessage('Star functionality coming soon!');
+  const toggleStar = async (snippetId) => {
+  if (!user) {
+    setSnackbarMessage("Please login to star");
     setSnackbarOpen(true);
-  };
+    return;
+  }
+
+  const starRef = ref(database, `sharedSnippets/${snippetId}/stars/${user.uid}`);
+
+  try {
+    const snapshot = await get(starRef);
+    if (snapshot.exists()) {
+      // Unstar
+      await update(ref(database, `sharedSnippets/${snippetId}/stars`), { [user.uid]: null });
+      setSnackbarMessage("Removed star");
+    } else {
+      // Star
+      await update(ref(database, `sharedSnippets/${snippetId}/stars`), { [user.uid]: true });
+      setSnackbarMessage("Snippet starred!");
+    }
+    setSnackbarOpen(true);
+  } catch (error) {
+    console.error('Star toggle error:', error);
+    setSnackbarMessage("Failed to update star");
+    setSnackbarOpen(true);
+  }
+};
 
   const filteredSnippets = snippets.filter(snippet => 
     snippet.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -223,7 +247,7 @@ function SnippetsPage() {
           {filteredSnippets.map(snippet => {
             const Icon = LANGUAGE_ICONS[snippet.language] || SiJavascript;
             const langColor = LANGUAGE_COLORS[snippet.language] || '#fff';
-            
+            const isStarred = snippet.stars && snippet.stars[user?.uid];
             return (
               <Grid item xs={12} sm={6} md={4} key={snippet.id}>
                 <Card 
@@ -309,12 +333,15 @@ function SnippetsPage() {
                     </Box>
                     <Stack direction="row" justifyContent="space-between">
                       <IconButton 
-                        sx={{ color: 'gold' }}
+                        sx={{ color: isStarred ? 'gold' : 'gray' }}
                         onClick={() => toggleStar(snippet.id)}
                       >
-                        <StarIcon />
+                        {isStarred ? <FaStar /> : <CiStar />}
+                      <Typography variant="caption" sx={{ ml: 1,fontSize: 16 }} >
+                        {snippet.stars ? Object.keys(snippet.stars).length : 0} stars
+                      </Typography>
                       </IconButton>
-                      { user.displayName === snippet.author && (
+                      { user.uid === snippet.userId && (
                         <IconButton 
                           sx={{ color: '#888' }}
                           onClick={() => handleDelete(snippet.id)}

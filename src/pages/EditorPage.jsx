@@ -105,24 +105,24 @@ function EditorPage() {
   };
 
   const handleSave = async () => {
-    if (!user) return;
-    
-    const snippetData = {
-      title: snippetTitle,
-      code,
-      language,
-      author:  user.displayName || 'Anonymous',
-      timestamp: Date.now(),
-    };
-
-    try {
-      await push(ref(database, 'savedsnippets'), snippetData);
-      setSnackbarOpen(true);
-    } catch (error) {
-      console.error("Error saving snippet:", error);
-      setOutput(`Error saving: ${error.message}`);
-    }
+  if (!user) return;
+  
+  const snippetData = {
+    title: `snippet of ${language} on ${new Date().toLocaleString()}`,
+    code,
+    language,
+    timestamp: Date.now(),
   };
+
+  try {
+    // Save to user's personal snippets
+    await push(ref(database, `userSnippets/${user.uid}`), snippetData);
+    setSnackbarOpen(true);
+  } catch (error) {
+    console.error("Error saving snippet:", error);
+    setOutput(`Error saving: ${error.message}`);
+  }
+};
 
   const handleShare = async () => {
     if (!snippetTitle.trim()) {
@@ -130,13 +130,22 @@ function EditorPage() {
       return;
     }
 
+    const selectedLang = LANGUAGES.find(lang => lang.id === language);
+
+    if (!selectedLang) {
+      alert("Invalid language selected");
+      return;
+    }
+
     const snippetData = {
-      title: snippetTitle,
-      code,
+      title: snippetTitle.trim(),
+      code: code.trim(),
       language,
-      languageName: LANGUAGES.find(lang => lang.id === language).name,
-      author:  user?.displayName || 'Anonymous',
-      avatar: user?.photoURL,
+      languageName: selectedLang.name,
+      stars: {}, 
+      author: user?.displayName || 'Anonymous',
+      avatar: user?.photoURL || '',
+      userId: user?.uid || '',
       timestamp: Date.now(),
     };
 
@@ -149,6 +158,8 @@ function EditorPage() {
       setOutput(`Error sharing: ${error.message}`);
     }
   };
+
+
 
   const handleLanguageChange = (e) => {
     const newLang = e.target.value;
@@ -316,7 +327,7 @@ function EditorPage() {
       </Box>
 
       {/* Share Dialog */}
-      <Dialog open={shareDialogOpen} onClose={() => setShareDialogOpen(false)}>
+      <Dialog open={shareDialogOpen} onClose={() => setShareDialogOpen(false)} sx={{ '& .MuiDialog-paper': { backgroundColor: '#474747', color: '#f0f0f0', boxShadow: '0 0 10px #949494ff' } }}>
         <DialogTitle>Share Your Code Snippet</DialogTitle>
         <DialogContent>
           <TextField
@@ -326,7 +337,7 @@ function EditorPage() {
             fullWidth
             value={snippetTitle}
             onChange={(e) => setSnippetTitle(e.target.value)}
-            sx={{ mb: 2 }}
+            sx={{ mb: 2,  }}
           />
         </DialogContent>
         <DialogActions>
@@ -335,6 +346,11 @@ function EditorPage() {
             onClick={handleShare}
             variant="contained"
             color="primary"
+            sx={{
+              background: 'linear-gradient(45deg, #ff9e00, #ff6d00)',
+              fontWeight: 'bold',
+              borderRadius: 4
+            }}
           >
             Share Snippet
           </Button>

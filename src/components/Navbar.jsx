@@ -104,10 +104,9 @@ const Navbar = () => {
           <Button
             component={Link}
             to="/profile"
-            startIcon={<Avatar src={user.photoURL || ''} sx={{ width: 24, height: 24 }} />}
             sx={gradientButtonStyles}
           >
-            {user.displayName || user.email || 'Profile'}
+            Profile
           </Button>
         ) : (
           <Button component={Link} to="/get-started" sx={gradientButtonStyles}>
@@ -117,7 +116,7 @@ const Navbar = () => {
       </Box>
     </Box>
   );
-
+  
   return (
     <>
       <AppBar
@@ -185,15 +184,8 @@ const Navbar = () => {
                 <Button
                   component={Link}
                   to="/profile"
-                  startIcon={<Avatar src={user.photoURL || ''} sx={{ width: 24, height: 24 }} />}
-                  sx={{
-                    ...gradientButtonStyles,
-                    width: 'auto',
-                    ml: 2,
-                    px: 3,
-                  }}
                 >
-                  {user.displayName || 'Profile'}
+                  <Avatar sx={{ mr: 1 }} src={user.photoURL}/>
                 </Button>
               ) : (
                 <Button
