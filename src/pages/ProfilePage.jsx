@@ -9,18 +9,19 @@ import {
   Grid,
   Tab,
   Tabs,
-  Typography
+  Typography,
+  Button,
+  Stack,
+  CircularProgress
 } from '@mui/material';
-import {Prism as SyntaxHighlighter} from 'react-syntax-highlighter';
-import { atomDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { useEffect, useState } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, database } from '../firebase/config';
 import { onValue, ref } from 'firebase/database';
 import StarIcon from '@mui/icons-material/Star';
 import CodeIcon from '@mui/icons-material/Code';
-import FavoriteIcon from '@mui/icons-material/Favorite';
 import CodeOffIcon from '@mui/icons-material/CodeOff';
+import { FaBookmark, FaStar } from 'react-icons/fa';
 
 const ProfilePage = () => {
   const [user] = useAuthState(auth);
@@ -35,16 +36,22 @@ const ProfilePage = () => {
     mostUsedLang: '',
     languagesUsed: 0
   });
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!user) return;
 
     const userSnipRef = ref(database, `userSnippets/${user.uid}`);
     const sharedRef = ref(database, 'sharedSnippets');
-
-    onValue(userSnipRef, snapshot => {
+    
+    // Unsubscribe functions
+    const unsubscribers = [];
+    
+    // User snippets listener
+    const userUnsub = onValue(userSnipRef, snapshot => {
       const data = snapshot.val() || {};
-      const snippets = Object.values(data);
+      // Extract snippet IDs
+      const snippets = Object.entries(data).map(([id, snip]) => ({ id, ...snip }));
 
       const langs = {};
       const now = Date.now();
@@ -52,14 +59,13 @@ const ProfilePage = () => {
 
       snippets.forEach(sn => {
         langs[sn.language] = (langs[sn.language] || 0) + 1;
-        if (now - sn.timestamp < 86400000) last24++;
+        if (sn.timestamp && now - sn.timestamp < 86400000) last24++;
       });
 
       const mostUsedLang = Object.keys(langs).reduce((a, b) =>
-        langs[a] > langs[b] ? a : b,
-        ''
+        langs[a] > langs[b] ? a : b, ''
       );
-
+      
       setStats(prev => ({
         ...prev,
         totalRuns: snippets.length,
@@ -69,23 +75,26 @@ const ProfilePage = () => {
       }));
 
       setCodeSnippets(snippets);
+      setLoading(false);
     });
+    unsubscribers.push(userUnsub);
 
-    onValue(sharedRef, snapshot => {
+    // Starred snippets listener
+    const sharedUnsub = onValue(sharedRef, snapshot => {
       const data = snapshot.val() || {};
       const stars = [];
       const langStars = {};
 
       Object.entries(data).forEach(([id, sn]) => {
         if (sn.stars && sn.stars[user.uid]) {
+          // Extract snippet ID
           stars.push({ id, ...sn });
           langStars[sn.language] = (langStars[sn.language] || 0) + 1;
         }
       });
 
       const mostStarredLang = Object.keys(langStars).reduce((a, b) =>
-        langStars[a] > langStars[b] ? a : b,
-        ''
+        langStars[a] > langStars[b] ? a : b, ''
       );
 
       setStats(prev => ({
@@ -96,7 +105,29 @@ const ProfilePage = () => {
 
       setStarredSnippets(stars);
     });
+    unsubscribers.push(sharedUnsub);
+
+    return () => unsubscribers.forEach(unsub => unsub());
   }, [user]);
+
+  // Helper to safely format dates
+  const formatDate = (timestamp) => {
+    try {
+      return timestamp ? new Date(timestamp).toLocaleString() : 'Unknown date';
+    } catch {
+      return 'Invalid date';
+    }
+  };
+
+  if (!user) {
+    return (
+      <Container maxWidth="lg" sx={{ py: 4, textAlign: 'center' }}>
+        <Typography variant="h6" sx={{ color: '#cfd8dc' }}>
+          Please sign in to view your profile
+        </Typography>
+      </Container>
+    );
+  }
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
@@ -124,7 +155,6 @@ const ProfilePage = () => {
             <Typography variant="body2" color="text.secondary">
               {user?.email}
             </Typography>
-            
           </Grid>
         </Grid>
       </Card>
@@ -152,7 +182,7 @@ const ProfilePage = () => {
               <Box mt={1}>
                 <Chip icon={<StarIcon />} label="Starred Snippets" />
               </Box>
-              <Typography variant="caption">Most starred: {stats.mostStarredLang}</Typography>
+              <Typography variant="caption">Most starred: {stats.mostStarredLang || 'None'}</Typography>
             </CardContent>
           </Card>
         </Grid>
@@ -165,7 +195,7 @@ const ProfilePage = () => {
               <Box mt={1}>
                 <Chip icon={<CodeOffIcon />} label="Languages Used" />
               </Box>
-              <Typography variant="caption">Most used: {stats.mostUsedLang}</Typography>
+              <Typography variant="caption">Most used: {stats.mostUsedLang || 'None'}</Typography>
             </CardContent>
           </Card>
         </Grid>
@@ -176,48 +206,176 @@ const ProfilePage = () => {
         <Tabs
           value={tab}
           onChange={(_, newValue) => setTab(newValue)}
-          
           sx={{ mb: 2 }}
         >
-          <Tab icon={<CodeIcon />} label="Code Executions" />
-          <Tab icon={<FavoriteIcon />} label="Starred Snippets" />
+          <Tab icon={<FaBookmark />} sx={{ color: '#f1f5f9' }} label="Code Saved" />
+          <Tab icon={<FaStar />}  sx={{ color: '#f1f5f9' }} label="Starred Snippets" />
         </Tabs>
 
-        <Box>
-          {tab === 0 &&
-            codeSnippets.map((snip, idx) => (
-              <Card key={idx} sx={{ mb: 2, p: 2, backgroundColor: '#424f63' }}>
-                <Typography variant="subtitle1" fontWeight="bold">
-                  {snip.language.toUpperCase()} -{' '}
-                  {new Date(snip.timestamp).toLocaleString()}
-                </Typography>
-                <SyntaxHighlighter
-                  language={snip.language}
-                  style={atomDark}
-                  showLineNumbers={false}
-                >
-                  {snip.code}
-                </SyntaxHighlighter>
-              </Card>
-            ))}
+        {loading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
+            <CircularProgress />
+          </Box>
+        ) : (
+          <Box>
+            {tab === 0 && (
+              <>
+                {codeSnippets.length === 0 ? (
+                  <Typography variant="h6" align="center" sx={{ color: '#cfd8dc', mt: 4 }}>
+                    No code executions found
+                  </Typography>
+                ) : (
+                  codeSnippets.map((snip) => (
+                    <Card
+                      key={snip.id}
+                      sx={{
+                        mb: 3,
+                        p: 3,
+                        borderRadius: 4,
+                        backgroundColor: '#2e3b4e',
+                        boxShadow: '0px 4px 12px rgba(0,0,0,0.2)',
+                        display: 'flex',
+                        flexDirection: { xs: 'column', md: 'row' },
+                        alignItems: { xs: 'flex-start', md: 'center' },
+                        justifyContent: 'space-between',
+                        gap: 2,
+                        transition: 'transform 0.2s ease-in-out',
+                        '&:hover': {
+                          transform: 'scale(1.01)',
+                        },
+                      }}
+                    >
+                      <Box sx={{ flex: 1 }}>
+                        <Typography
+                          variant="h6"
+                          sx={{
+                            fontWeight: 'light',
+                            color: '#9bc8f9',
+                            mb: 0.5,
+                            wordBreak: 'break-word',
+                          }}
+                        >
+                          {snip.title || 'Untitled Snippet'}
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: '#90caf9' }}>
+                          Language: {snip.language?.toUpperCase()}
+                        </Typography>
+                      </Box>
 
-          {tab === 1 &&
-            starredSnippets.map((snip, idx) => (
-              <Card key={idx} sx={{ mb: 2, p: 2, backgroundColor: '#424f63' }}>
-                <Typography variant="subtitle1" fontWeight="bold">
-                  {snip.language.toUpperCase()} -{' '}
-                  {new Date(snip.timestamp).toLocaleString()}
-                </Typography>
-                <SyntaxHighlighter
-                  language={snip.language}
-                  style={atomDark}
-                  showLineNumbers={false}
-                >
-                  {snip.code}
-                </SyntaxHighlighter>
-              </Card>
-            ))}
-        </Box>
+                      <Button
+                        variant="contained"
+                        href={`/saved-snippets/${snip.id}`}
+                        sx={{
+                          mt: { xs: 2, md: 0 },
+                          backgroundColor: '#1de9b6',
+                          color: '#000',
+                          fontWeight: 600,
+                          px: 3,
+                          py: 1.2,
+                          borderRadius: 3,
+                          textTransform: 'none',
+                          '&:hover': {
+                            backgroundColor: '#00bfa5',
+                          },
+                        }}
+                      >
+                        View Snippet
+                      </Button>
+                    </Card>
+                  ))
+                )}
+              </>
+            )}
+            
+            {tab === 1 && (
+              <>
+                {starredSnippets.length === 0 ? (
+                  <Typography variant="h6" align="center" sx={{ color: '#cfd8dc', mt: 4 }}>
+                    No starred snippets found
+                  </Typography>
+                ) : (
+                  starredSnippets.map((snip) => (
+                    <Card
+                      key={snip.id}
+                      sx={{
+                        mb: 3,
+                        p: 3,
+                        borderRadius: 4,
+                        backgroundColor: '#2e3b4e',
+                        boxShadow: '0px 4px 12px rgba(0,0,0,0.2)',
+                        display: 'flex',
+                        flexDirection: { xs: 'column', md: 'row' },
+                        alignItems: { xs: 'flex-start', md: 'center' },
+                        justifyContent: 'space-between',
+                        gap: 2,
+                        transition: 'transform 0.2s ease-in-out',
+                        '&:hover': {
+                          transform: 'scale(1.01)',
+                        },
+                      }}
+                    >
+                      <Box sx={{ flex: 1 }}>
+                        <Typography
+                          variant="h6"
+                          sx={{
+                            fontWeight: 'bold',
+                            color: '#ffffff',
+                            mb: 0.5,
+                            wordBreak: 'break-word',
+                          }}
+                        >
+                          {snip.title || 'Untitled Snippet'}
+                        </Typography>
+
+                        <Stack direction="row" spacing={2} flexWrap="wrap" mb={1}>
+                          <Typography
+                            variant="body2"
+                            sx={{ color: '#90caf9', fontWeight: 500 }}
+                          >
+                            Language: {snip.language?.toUpperCase()}
+                          </Typography>
+                          <Typography
+                            variant="body2"
+                            sx={{ color: '#cfd8dc' }}
+                          >
+                            Author: {snip.author || 'Unknown'}
+                          </Typography>
+                        </Stack>
+
+                        <Typography
+                          variant="caption"
+                          sx={{ color: '#b0bec5' }}
+                        >
+                          Created: {formatDate(snip.timestamp)}
+                        </Typography>
+                      </Box>
+
+                      <Button
+                        variant="contained"
+                        href={`/snippets/${snip.id}`}
+                        sx={{
+                          mt: { xs: 2, md: 0 },
+                          backgroundColor: '#1de9b6',
+                          color: '#000',
+                          fontWeight: 600,
+                          px: 3,
+                          py: 1.2,
+                          borderRadius: 3,
+                          textTransform: 'none',
+                          '&:hover': {
+                            backgroundColor: '#00bfa5',
+                          },
+                        }}
+                      >
+                        View Snippet
+                      </Button>
+                    </Card>
+                  ))
+                )}
+              </>
+            )}
+          </Box>
+        )}
       </Box>
     </Container>
   );

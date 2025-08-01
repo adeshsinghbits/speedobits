@@ -256,9 +256,9 @@ function EditorPage() {
   const currentLanguage = LANGUAGES.find(lang => lang.id === language);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: '#0f172a' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: '#000000' }}>
       <AppBar position="static" sx={{ 
-        background: 'linear-gradient(45deg, #1e293b, #0f172a)',
+        backgroundColor: '#000000',
         boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
       }}>
         <Toolbar sx={{ 
@@ -481,7 +481,7 @@ function EditorPage() {
         sx={{ 
           mt: 6,
           '& .MuiPaper-root': {
-            background: '#1e293b',
+            background: '#000000',
             borderRadius: '12px',
             minWidth: 200
           }
@@ -664,7 +664,7 @@ function EditorPage() {
             alignItems: 'center',
             p: 2,
             borderBottom: '1px solid #334155',
-            backgroundColor: '#1e293b'
+            backgroundColor: '#000000',
           }}>
             <Typography variant="h6" sx={{ color: '#f0f0f0', fontWeight: 'bold' }}>
               Output
@@ -676,7 +676,7 @@ function EditorPage() {
                   label="Success" 
                   size="small" 
                   sx={{ 
-                    background: 'rgba(16, 185, 129, 0.15)', 
+                    background: '000000', 
                     color: '#10b981',
                     fontWeight: 'bold'
                   }} 
@@ -707,7 +707,7 @@ function EditorPage() {
             flex: 1, 
             p: 2, 
             overflow: 'auto',
-            backgroundColor: '#0f172a'
+            backgroundColor: '#000000',
           }}>
             <pre style={{
               color: '#e2e8f0',

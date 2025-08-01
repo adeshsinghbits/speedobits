@@ -10,6 +10,7 @@ import { auth } from './firebase/config';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import ProfilePage from './pages/ProfilePage';
 import SnippetDetailPage from './pages/SnippetDetailPage';
+import SavedSnippetPage from './pages/SavedSnippetPage';
 
 const theme = createTheme();
 
@@ -66,6 +67,12 @@ function App() {
             </ProtectedRoute>
           } />
           </Route>
+          <Route path="/saved-snippets/:id" element={
+            <ProtectedRoute>
+              <SavedSnippetPage />
+            </ProtectedRoute>
+          } />
+
         </Routes>
       </BrowserRouter>
     </ThemeProvider>

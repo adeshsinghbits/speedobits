@@ -23,7 +23,7 @@ const LandingPage = () => {
         <Box
         sx={{
             minHeight: '100vh',
-            backgroundColor: '#000000',
+            backgroundColor: '#000000', 
             color: '#f1f5f9',
             fontFamily: 'Inter, sans-serif',
             overflowX: 'hidden',

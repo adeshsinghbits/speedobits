@@ -172,7 +172,7 @@ function SnippetsPage() {
     return (
       <Box sx={{ 
         textAlign: 'center', 
-        backgroundColor: '#0e0e12',
+        backgroundColor: '#000000',
         minHeight: '100vh',
         display: 'flex',
         justifyContent: 'center',
@@ -185,7 +185,7 @@ function SnippetsPage() {
   }
 
   return (
-    <Box sx={{ backgroundColor: '#0e0e12', minHeight: '100vh', color: '#fff', py: 5 }}>
+    <Box sx={{ backgroundColor: '#000000', minHeight: '100vh', color: '#fff', py: 5 }}>
       <Container maxWidth="lg">
         <Typography variant="h3" align="center" fontWeight="bold" gutterBottom>
           Discover & Share Code Snippets
