@@ -16,6 +16,7 @@ import {
     Bolt,
     Lock
 } from '@mui/icons-material';
+import  codeTyping from '../assets/Code-typing-pana.svg';
 
 const LandingPage = () => {
     return (
@@ -103,6 +104,17 @@ const LandingPage = () => {
                 View Demo
                 </Button>
             </Box>
+            <Avatar
+                src={codeTyping}
+                alt="Code Typing"
+                sx={{
+                    width: { xs: '100%', sm: '80%', md: '60%' },
+                    height: 'auto',
+                    backgroundColor: 'transparent',
+                    mt: 4,
+                    mx: 'auto',
+                }}
+            />
             </Box>
         </Container>
 

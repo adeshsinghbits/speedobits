@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
 import axios from 'axios';
-import { RxCrossCircled } from "react-icons/rx";
+import { RxCrossCircled, RxCheckCircled } from "react-icons/rx";
 import {
   AppBar,
   Toolbar,
@@ -18,7 +18,12 @@ import {
   TextField,
   IconButton,
   Avatar,
-  Snackbar
+  Snackbar,
+  Chip,
+  useMediaQuery,
+  Menu,
+  Fade,
+  Divider
 } from '@mui/material';
 import MuiAlert from '@mui/material/Alert';
 import {
@@ -29,6 +34,7 @@ import {
 } from 'react-icons/si';
 import { FaJava } from 'react-icons/fa';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import MenuIcon from '@mui/icons-material/Menu';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, database } from '../firebase/config';
 import { ref, push } from 'firebase/database';
@@ -45,25 +51,51 @@ const DEFAULT_CODE = {
 };
 
 const LANGUAGES = [
-  { id: 'javascript', name: 'JavaScript', Icon: SiJavascript, color: 'yellow' },
-  { id: 'python', name: 'Python', Icon: SiPython, color: 'blue' },
-  { id: 'java', name: 'Java', Icon: FaJava, color: 'red' },
-  { id: 'cpp', name: 'C++', Icon: SiCplusplus, color: 'blue' },
-  { id: 'php', name: 'PHP', Icon: SiPhp, color: 'purple' }
+  { id: 'javascript', name: 'JavaScript', Icon: SiJavascript, color: '#f0db4f' },
+  { id: 'python', name: 'Python', Icon: SiPython, color: '#3572A5' },
+  { id: 'java', name: 'Java', Icon: FaJava, color: '#b07219' },
+  { id: 'cpp', name: 'C++', Icon: SiCplusplus, color: '#f34b7d' },
+  { id: 'php', name: 'PHP', Icon: SiPhp, color: '#4F5D95' }
 ];
+
+// Common button style configuration
+const buttonStyle = {
+  background: 'linear-gradient(45deg, #6366f1, #8b5cf6)',
+  color: 'white',
+  fontWeight: 'bold',
+  borderRadius: '12px',
+  padding: '8px 20px',
+  textTransform: 'none',
+  boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+  transition: 'all 0.3s ease',
+  '&:hover': {
+    transform: 'translateY(-2px)',
+    boxShadow: '0 6px 8px rgba(0, 0, 0, 0.15)',
+    background: 'linear-gradient(45deg, #4f46e5, #7c3aed)'
+  },
+  '&:disabled': {
+    background: '#94a3b8',
+    transform: 'none',
+    boxShadow: 'none'
+  }
+};
 
 function EditorPage() {
   const [code, setCode] = useState(DEFAULT_CODE.javascript);
   const [language, setLanguage] = useState('javascript');
   const [fontSize, setFontSize] = useState(14);
   const [output, setOutput] = useState('');
-  const [status, setStatus] = useState('');
+  const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(false);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
-  const [snackbarOpen, setSnackbarOpen] = useState(false);
-  const [snippetTitle, setSnippetTitle] = useState();
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const [snippetTitle, setSnippetTitle] = useState('');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [user] = useAuthState(auth);
   const navigate = useNavigate();
+  
+  const isSmallScreen = useMediaQuery('(max-width:900px)');
+  const isMediumScreen = useMediaQuery('(max-width:1200px)');
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -80,14 +112,19 @@ function EditorPage() {
         setCode(decodedCode);
       } catch (e) {
         console.error('Error decoding shared code:', e);
+        setSnackbar({
+          open: true,
+          message: 'Failed to load shared code',
+          severity: 'error'
+        });
       }
     }
-    
   }, [user]);
 
   const handleRunCode = async () => {
     setLoading(true);
     setOutput('');
+    setStatus(null);
     try {
       const response = await axios.post(API_URL, {
         language,
@@ -95,53 +132,77 @@ function EditorPage() {
         files: [{ content: code }]
       });
 
-      setOutput(response.data.run.output || 'No output');
-      setStatus(response.data.run.code);
+      setOutput(response.data.run.output || 'No output available');
+      setStatus(response.data.run.code === 0 ? 'success' : 'error');
     } catch (error) {
       setOutput(`Error: ${error.response?.data?.message || error.message}`);
+      setStatus('error');
     } finally {
       setLoading(false);
     }
   };
 
   const handleSave = async () => {
-  if (!user) return;
-  
-  const snippetData = {
-    title: `snippet of ${language} on ${new Date().toLocaleString()}`,
-    code,
-    language,
-    timestamp: Date.now(),
-  };
+    if (!user) {
+      setSnackbar({
+        open: true,
+        message: 'Please sign in to save snippets',
+        severity: 'warning'
+      });
+      return;
+    }
+    
+    const snippetData = {
+      title: `snippet of ${language} on ${new Date().toLocaleString()}`,
+      code,
+      language,
+      timestamp: Date.now(),
+    };
 
-  try {
-    // Save to user's personal snippets
-    await push(ref(database, `userSnippets/${user.uid}`), snippetData);
-    setSnackbarOpen(true);
-  } catch (error) {
-    console.error("Error saving snippet:", error);
-    setOutput(`Error saving: ${error.message}`);
-  }
-};
+    try {
+      await push(ref(database, `userSnippets/${user.uid}`), snippetData);
+      setSnackbar({
+        open: true,
+        message: 'Snippet saved successfully!',
+        severity: 'success'
+      });
+    } catch (error) {
+      console.error("Error saving snippet:", error);
+      setOutput(`Error saving: ${error.message}`);
+      setSnackbar({
+        open: true,
+        message: 'Failed to save snippet',
+        severity: 'error'
+      });
+    }
+  };
 
   const handleShare = async () => {
     if (!snippetTitle.trim()) {
-      alert("Please enter a title for your snippet");
+      setSnackbar({
+        open: true,
+        message: 'Please enter a title for your snippet',
+        severity: 'warning'
+      });
+      return;
+    }
+
+    if (!user) {
+      setSnackbar({
+        open: true,
+        message: 'Please sign in to share snippets',
+        severity: 'warning'
+      });
       return;
     }
 
     const selectedLang = LANGUAGES.find(lang => lang.id === language);
 
-    if (!selectedLang) {
-      alert("Invalid language selected");
-      return;
-    }
-
     const snippetData = {
       title: snippetTitle.trim(),
       code: code.trim(),
       language,
-      languageName: selectedLang.name,
+      languageName: selectedLang?.name || language,
       stars: {}, 
       author: user?.displayName || 'Anonymous',
       avatar: user?.photoURL || '',
@@ -152,14 +213,21 @@ function EditorPage() {
     try {
       await push(ref(database, 'sharedSnippets'), snippetData);
       setShareDialogOpen(false);
-      setSnackbarOpen(true);
+      setSnippetTitle('');
+      setSnackbar({
+        open: true,
+        message: 'Snippet shared successfully!',
+        severity: 'success'
+      });
     } catch (error) {
       console.error("Error sharing snippet:", error);
-      setOutput(`Error sharing: ${error.message}`);
+      setSnackbar({
+        open: true,
+        message: 'Failed to share snippet',
+        severity: 'error'
+      });
     }
   };
-
-
 
   const handleLanguageChange = (e) => {
     const newLang = e.target.value;
@@ -167,54 +235,283 @@ function EditorPage() {
     setCode(DEFAULT_CODE[newLang] || '');
   };
 
+  const handleCopyOutput = () => {
+    navigator.clipboard.writeText(output);
+    setSnackbar({
+      open: true,
+      message: 'Output copied to clipboard!',
+      severity: 'info'
+    });
+  };
+
+  const handleResetCode = () => {
+    setCode(DEFAULT_CODE[language] || '');
+    setSnackbar({
+      open: true,
+      message: 'Editor reset to default code',
+      severity: 'info'
+    });
+  };
+
   const currentLanguage = LANGUAGES.find(lang => lang.id === language);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
-      <AppBar position="static" sx={{ backgroundColor: '#1a1a2e' }}>
-        <Toolbar>
-          <Typography 
-            variant="h6" 
-            sx={{ flexGrow: 1, fontWeight: 'bold', cursor: 'pointer' }}
-            onClick={() => navigate('/')}
-          >
-            CodeShare
-          </Typography>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: '#0f172a' }}>
+      <AppBar position="static" sx={{ 
+        background: 'linear-gradient(45deg, #1e293b, #0f172a)',
+        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
+      }}>
+        <Toolbar sx={{ 
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          py: isSmallScreen ? 1 : 0,
+          gap: isSmallScreen ? 1 : 0
+        }}>
+          <Box sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            flexGrow: isSmallScreen ? 1 : 0 
+          }}>
+            <IconButton
+              size="large"
+              edge="start"
+              color="inherit"
+              aria-label="menu"
+              sx={{ 
+                mr: 1,
+                display: isSmallScreen ? 'inline-flex' : 'none' 
+              }}
+              onClick={() => setMobileMenuOpen(true)}
+            >
+              <MenuIcon />
+            </IconButton>
+            <Typography 
+              variant="h6" 
+              sx={{ 
+                fontWeight: 'bold', 
+                cursor: 'pointer',
+                background: 'linear-gradient(45deg, #8b5cf6, #6366f1)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                fontSize: isSmallScreen ? '1.2rem' : '1.5rem'
+              }}
+              onClick={() => navigate('/')}
+            >
+              CodeShare
+            </Typography>
+          </Box>
 
+          <Box sx={{ 
+            display: isSmallScreen ? 'none' : 'flex', 
+            alignItems: 'center', 
+            gap: 2,
+            flexWrap: 'wrap',
+            justifyContent: 'center',
+            my: isSmallScreen ? 1 : 0
+          }}>
+            <Select
+              value={language}
+              onChange={handleLanguageChange}
+              variant="outlined"
+              size="small"
+              sx={{
+                minWidth: 160,
+                background: '#1e293b',
+                borderRadius: 3,
+                '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
+                '&:hover': {
+                  boxShadow: `0 0 10px ${currentLanguage?.color || '#6366f1'}`
+                }
+              }}
+              MenuProps={{
+                PaperProps: {
+                  sx: {
+                    borderRadius: 2,
+                    background: '#1e293b',
+                    boxShadow: '0 5px 15px rgba(0, 0, 0, 0.5)'
+                  }
+                }
+              }}
+              renderValue={(selected) => {
+                const selectedLang = LANGUAGES.find(lang => lang.id === selected);
+                const Icon = selectedLang?.Icon;
+                return (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                    <Avatar sx={{ 
+                      bgcolor: '#0f172a', 
+                      color: selectedLang?.color, 
+                      width: 28, 
+                      height: 28 
+                    }}>
+                      <Icon style={{ fontSize: 16 }} />
+                    </Avatar>
+                    <Typography variant="body2" sx={{ color: '#f0f0f0' }}>
+                      {selectedLang?.name}
+                    </Typography>
+                  </Box>
+                );
+              }}
+            >
+              {LANGUAGES.map((lang) => {
+                const Icon = lang.Icon;
+                return (
+                  <MenuItem
+                    key={lang.id}
+                    value={lang.id}
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1.5,
+                      '&:hover': {
+                        background: `rgba(${parseInt(lang.color.slice(1, 3), 16)}, ${parseInt(lang.color.slice(3, 5), 16)}, ${parseInt(lang.color.slice(5, 7), 16)}, 0.1)`
+                      }
+                    }}
+                  >
+                    <Avatar sx={{ 
+                      bgcolor: '#0f172a', 
+                      color: lang.color, 
+                      width: 28, 
+                      height: 28 
+                    }}>
+                      <Icon style={{ fontSize: 16 }} />
+                    </Avatar>
+                    <Typography variant="body1" sx={{ color: '#f0f0f0' }}>
+                      {lang.name}
+                    </Typography>
+                  </MenuItem>
+                );
+              })}
+            </Select>
+
+            <Box sx={{ 
+              width: 150, 
+              display: 'flex', 
+              alignItems: 'center',
+              minWidth: 120
+            }}>
+              <Typography variant="body2" sx={{ 
+                color: '#f0f0f0', 
+                mr: 1,
+                display: isMediumScreen ? 'none' : 'block'
+              }}>
+                Font:
+              </Typography>
+              <Slider
+                value={fontSize}
+                onChange={(e, value) => setFontSize(value)}
+                min={10}
+                max={24}
+                step={1}
+                sx={{ 
+                  color: '#8b5cf6',
+                  width: isMediumScreen ? 80 : 100,
+                  '& .MuiSlider-thumb': {
+                    width: 14,
+                    height: 14
+                  }
+                }}
+              />
+              <Typography variant="body2" sx={{ 
+                color: '#f0f0f0', 
+                ml: 1,
+                minWidth: 30
+              }}>
+                {fontSize}px
+              </Typography>
+            </Box>
+
+            <Button 
+              onClick={handleResetCode}
+              variant="contained" 
+              sx={{
+                ...buttonStyle,
+                display: isMediumScreen ? 'none' : 'inline-flex'
+              }}
+            >
+              Reset
+            </Button>
+
+            <Button 
+              onClick={handleRunCode} 
+              disabled={loading} 
+              variant="contained" 
+              sx={buttonStyle}
+            >
+              {loading ? 'Running...' : 'Run'}
+            </Button>
+
+            <Button 
+              onClick={handleSave} 
+              variant="contained" 
+              sx={{
+                ...buttonStyle,
+                display: isMediumScreen ? 'none' : 'inline-flex'
+              }}
+            >
+              Save
+            </Button>
+
+            <Button 
+              onClick={() => setShareDialogOpen(true)} 
+              variant="contained" 
+              sx={{
+                ...buttonStyle,
+                background: 'linear-gradient(45deg, #ec4899, #8b5cf6)'
+              }}
+            >
+              Share
+            </Button>
+          </Box>
+        </Toolbar>
+      </AppBar>
+
+      {/* Mobile Menu */}
+      <Menu
+        anchorOrigin={{
+          vertical: 'top',
+          horizontal: 'right',
+        }}
+        transformOrigin={{
+          vertical: 'top',
+          horizontal: 'right',
+        }}
+        open={mobileMenuOpen}
+        onClose={() => setMobileMenuOpen(false)}
+        TransitionComponent={Fade}
+        sx={{ 
+          mt: 6,
+          '& .MuiPaper-root': {
+            background: '#1e293b',
+            borderRadius: '12px',
+            minWidth: 200
+          }
+        }}
+      >
+        <Box sx={{ p: 2 }}>
+          <Typography variant="subtitle1" sx={{ 
+            color: '#e2e8f0', 
+            fontWeight: 'bold',
+            mb: 1
+          }}>
+            Language
+          </Typography>
           <Select
             value={language}
             onChange={handleLanguageChange}
-            variant="outlined"
+            fullWidth
             size="small"
             sx={{
-              minWidth: 160,
-              background: '#000000',
-              borderRadius: 4,
-              marginRight: 2,
-              '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
-              '&:hover': {
-                boxShadow: `0 0 10px ${currentLanguage?.color || '#4361ee'}`
-              }
-            }}
-            MenuProps={{
-              PaperProps: {
-                sx: {
-                  borderRadius: 2,
-                  background: '#1a1a2e',
-                  boxShadow: '0 5px 15px rgba(0, 0, 0, 0.5)'
-                }
-              }
+              background: '#0f172a',
+              borderRadius: 3,
+              mb: 2,
+              '& .MuiOutlinedInput-notchedOutline': { border: 'none' }
             }}
             renderValue={(selected) => {
               const selectedLang = LANGUAGES.find(lang => lang.id === selected);
-              const Icon = selectedLang?.Icon;
               return (
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                  <Avatar sx={{ bgcolor: '#000000', color: selectedLang?.color, width: 28, height: 28 }}>
-                    <Icon style={{ fontSize: 16 }} />
-                  </Avatar>
-                  <Typography variant="body2" sx={{ color: '#f0f0f0' }}>{selectedLang?.name}</Typography>
-                </Box>
+                <Typography variant="body2" sx={{ color: '#f0f0f0' }}>
+                  {selectedLang?.name}
+                </Typography>
               );
             }}
           >
@@ -229,64 +526,105 @@ function EditorPage() {
                     alignItems: 'center',
                     gap: 1.5,
                     '&:hover': {
-                      boxShadow: `0 0 10px ${lang.color || '#4361ee'}`
+                      background: `rgba(${parseInt(lang.color.slice(1, 3), 16)}, ${parseInt(lang.color.slice(3, 5), 16)}, ${parseInt(lang.color.slice(5, 7), 16)}, 0.1)`
                     }
                   }}
                 >
-                  <Avatar sx={{ bgcolor: '#000000', color: lang.color, width: 28, height: 28 }}>
+                  <Avatar sx={{ 
+                    bgcolor: '#0f172a', 
+                    color: lang.color, 
+                    width: 28, 
+                    height: 28 
+                  }}>
                     <Icon style={{ fontSize: 16 }} />
                   </Avatar>
-                  <Typography variant="body1" sx={{ color: '#f0f0f0' }}>{lang.name}</Typography>
+                  <Typography variant="body1" sx={{ color: '#f0f0f0' }}>
+                    {lang.name}
+                  </Typography>
                 </MenuItem>
               );
             })}
           </Select>
 
-          <Box sx={{ width: 150, marginRight: 2 }}>
-            <Typography variant="body2" sx={{ color: '#f0f0f0' }}>Font Size: {fontSize}px</Typography>
-            <Slider
-              value={fontSize}
-              onChange={(e, value) => setFontSize(value)}
-              min={10}
-              max={24}
-              step={1}
-              sx={{ color: 'white' }}
-            />
+          <Typography variant="subtitle1" sx={{ 
+            color: '#e2e8f0', 
+            fontWeight: 'bold',
+            mb: 1
+          }}>
+            Font Size: {fontSize}px
+          </Typography>
+          <Slider
+            value={fontSize}
+            onChange={(e, value) => setFontSize(value)}
+            min={10}
+            max={24}
+            step={1}
+            sx={{ 
+              color: '#8b5cf6',
+              width: '100%',
+              mb: 2,
+              '& .MuiSlider-thumb': {
+                width: 14,
+                height: 14
+              }
+            }}
+          />
+
+          <Divider sx={{ my: 1, bgcolor: '#334155' }} />
+
+          <Button 
+            fullWidth
+            onClick={handleResetCode}
+            variant="contained" 
+            sx={{
+              ...buttonStyle,
+              mb: 1
+            }}
+          >
+            Reset Code
+          </Button>
+
+          <Button 
+            fullWidth
+            onClick={handleSave} 
+            variant="contained" 
+            sx={{
+              ...buttonStyle,
+              mb: 1
+            }}
+          >
+            Save Snippet
+          </Button>
+        </Box>
+      </Menu>
+
+      <Box sx={{ 
+        flex: 1, 
+        display: 'flex', 
+        overflow: 'hidden',
+        flexDirection: isSmallScreen ? 'column' : 'row'
+      }}>
+        <Box sx={{ 
+          width: isSmallScreen ? '100%' : (isMediumScreen ? '60%' : '70%'),
+          height: isSmallScreen ? '50vh' : 'auto',
+          borderRight: isSmallScreen ? 'none' : '1px solid #334155',
+          borderBottom: isSmallScreen ? '1px solid #334155' : 'none',
+          position: 'relative'
+        }}>
+          <Box sx={{
+            position: 'absolute',
+            top: 10,
+            right: 10,
+            zIndex: 10,
+            background: 'rgba(30, 41, 59, 0.8)',
+            borderRadius: 4,
+            px: 1.5,
+            py: 0.5
+          }}>
+            <Typography variant="caption" sx={{ color: '#94a3b8' }}>
+              {language.toUpperCase()}
+            </Typography>
           </Box>
-
-          <Button onClick={handleRunCode} disabled={loading} variant="contained" sx={{
-            background: 'linear-gradient(45deg, #00b4d8, #0077b6)',
-            fontWeight: 'bold',
-            borderRadius: 4,
-            marginRight: 2,
-            '&:hover': {
-              background: 'linear-gradient(45deg, #0096c7, #023e8a)'
-            }
-          }}>
-            {loading ? 'Running...' : 'Run Code'}
-          </Button>
-
-          <Button onClick={handleSave} variant="contained" sx={{
-            background: 'linear-gradient(45deg, #09ac00ff, #008000)',
-            fontWeight: 'bold',
-            borderRadius: 4,
-            marginRight: 2
-          }}>
-            Save
-          </Button>
-
-          <Button onClick={() => setShareDialogOpen(true)} variant="contained" sx={{
-            background: 'linear-gradient(45deg, #ff9e00, #ff6d00)',
-            fontWeight: 'bold',
-            borderRadius: 4
-          }}>
-            Share
-          </Button>
-        </Toolbar>
-      </AppBar>
-
-      <Box sx={{ flex: 1, display: 'flex' }}>
-        <Box sx={{ width: '70%', borderRight: '1px solid #333' }}>
           <Editor
             height="100%"
             language={language}
@@ -297,39 +635,164 @@ function EditorPage() {
               fontSize,
               minimap: { enabled: false },
               scrollBeyondLastLine: false,
-              padding: { top: 30, bottom: 16 }
+              padding: { top: 30, bottom: 16 },
+              fontFamily: "'Fira Code', monospace",
+              fontLigatures: true,
+              lineNumbers: 'on',
+              glyphMargin: true,
+              contextmenu: true,
+              cursorBlinking: 'smooth',
+              scrollbar: {
+                vertical: 'auto',
+                horizontal: 'auto'
+              }
             }}
           />
         </Box>
 
-        <Box sx={{ width: '30%', padding: 2, overflow: 'auto', backgroundColor: '#121212' }}>
-          <Typography variant="h6" gutterBottom sx={{ color: '#f0f0f0', fontWeight: 'bold' }}>
-            Output:
-          </Typography>
-
-          {status !== '' && (
-            status === 0
-              ? <Typography sx={{ color: '#00ad34ff' }}>Execution Complete</Typography>
-              : <Typography sx={{ color: '#a00000ff' }}><RxCrossCircled /> Execution failed</Typography>
-          )}
-
-          <pre style={{
-            backgroundColor: '#1a1a2e',
-            color: '#f0f0f0',
-            padding: 10,
-            borderRadius: 4,
-            minHeight: 100,
-            whiteSpace: 'pre-wrap'
+        <Box sx={{ 
+          width: isSmallScreen ? '100%' : (isMediumScreen ? '40%' : '30%'),
+          height: isSmallScreen ? '50vh' : 'auto',
+          display: 'flex', 
+          flexDirection: 'column',
+          backgroundColor: '#0f172a',
+          borderLeft: isSmallScreen ? 'none' : '1px solid #334155'
+        }}>
+          <Box sx={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            p: 2,
+            borderBottom: '1px solid #334155',
+            backgroundColor: '#1e293b'
           }}>
-            {output}
-          </pre>
+            <Typography variant="h6" sx={{ color: '#f0f0f0', fontWeight: 'bold' }}>
+              Output
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              {status === 'success' && (
+                <Chip 
+                  icon={<RxCheckCircled />} 
+                  label="Success" 
+                  size="small" 
+                  sx={{ 
+                    background: 'rgba(16, 185, 129, 0.15)', 
+                    color: '#10b981',
+                    fontWeight: 'bold'
+                  }} 
+                />
+              )}
+              {status === 'error' && (
+                <Chip 
+                  icon={<RxCrossCircled />} 
+                  label="Error" 
+                  size="small" 
+                  sx={{ 
+                    background: 'rgba(239, 68, 68, 0.15)', 
+                    color: '#ef4444',
+                    fontWeight: 'bold'
+                  }} 
+                />
+              )}
+              <IconButton 
+                onClick={handleCopyOutput} 
+                size="small"
+                sx={{ color: '#94a3b8', '&:hover': { color: '#6366f1' } }}
+              >
+                <ContentCopyIcon fontSize="small" />
+              </IconButton>
+            </Box>
+          </Box>
+          <Box sx={{ 
+            flex: 1, 
+            p: 2, 
+            overflow: 'auto',
+            backgroundColor: '#0f172a'
+          }}>
+            <pre style={{
+              color: '#e2e8f0',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+              fontFamily: "'Fira Code', monospace",
+              fontSize: '0.9rem',
+              lineHeight: 1.5
+            }}>
+              {output || (loading ? 'Running code...' : 'Output will appear here')}
+            </pre>
+          </Box>
         </Box>
       </Box>
 
+      {/* Floating action buttons for mobile */}
+      {isSmallScreen && (
+        <Box sx={{
+          position: 'fixed',
+          bottom: 20,
+          right: 20,
+          display: 'flex',
+          gap: 1,
+          zIndex: 1000
+        }}>
+          <Button 
+            variant="contained"
+            onClick={handleRunCode}
+            disabled={loading}
+            sx={{
+              ...buttonStyle,
+              minWidth: 'auto',
+              padding: '10px 16px',
+              borderRadius: '50%',
+              width: 56,
+              height: 56
+            }}
+          >
+            {loading ? '...' : 'Run'}
+          </Button>
+          
+          <Button 
+            variant="contained"
+            onClick={() => setShareDialogOpen(true)}
+            sx={{
+              ...buttonStyle,
+              background: 'linear-gradient(45deg, #ec4899, #8b5cf6)',
+              minWidth: 'auto',
+              padding: '10px 16px',
+              borderRadius: '50%',
+              width: 56,
+              height: 56
+            }}
+          >
+            Share
+          </Button>
+        </Box>
+      )}
+
       {/* Share Dialog */}
-      <Dialog open={shareDialogOpen} onClose={() => setShareDialogOpen(false)} sx={{ '& .MuiDialog-paper': { backgroundColor: '#474747', color: '#f0f0f0', boxShadow: '0 0 10px #949494ff' } }}>
-        <DialogTitle>Share Your Code Snippet</DialogTitle>
-        <DialogContent>
+      <Dialog 
+        open={shareDialogOpen} 
+        onClose={() => setShareDialogOpen(false)} 
+        sx={{ 
+          '& .MuiDialog-paper': { 
+            backgroundColor: '#1e293b', 
+            color: '#f0f0f0', 
+            boxShadow: '0 0 20px rgba(139, 92, 246, 0.3)',
+            borderRadius: '12px',
+            width: isSmallScreen ? '90%' : '400px',
+            maxWidth: '90vw'
+          } 
+        }}
+      >
+        <DialogTitle sx={{ 
+          background: 'linear-gradient(45deg, #6366f1, #8b5cf6)',
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
+          fontWeight: 'bold',
+          fontSize: isSmallScreen ? '1.1rem' : '1.25rem',
+          textAlign: 'center'
+        }}>
+          Share Your Code Snippet
+        </DialogTitle>
+        <DialogContent sx={{ py: 3 }}>
           <TextField
             autoFocus
             margin="dense"
@@ -337,20 +800,49 @@ function EditorPage() {
             fullWidth
             value={snippetTitle}
             onChange={(e) => setSnippetTitle(e.target.value)}
-            sx={{ mb: 2,  }}
+            sx={{ 
+              mb: 2,
+              '& .MuiInputBase-input': {
+                color: '#e2e8f0'
+              },
+              '& .MuiInputLabel-root': {
+                color: '#94a3b8'
+              },
+              '& .MuiOutlinedInput-root': {
+                '& fieldset': {
+                  borderColor: '#334155'
+                },
+                '&:hover fieldset': {
+                  borderColor: '#6366f1'
+                },
+                '&.Mui-focused fieldset': {
+                  borderColor: '#8b5cf6'
+                }
+              }
+            }}
           />
+          <Typography variant="body2" sx={{ color: '#94a3b8', mt: 1 }}>
+            This will be shared publicly on the community page
+          </Typography>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setShareDialogOpen(false)}>Cancel</Button>
+        <DialogActions sx={{ px: 3, py: 2, borderTop: '1px solid #334155' }}>
+          <Button 
+            onClick={() => setShareDialogOpen(false)} 
+            sx={{
+              color: '#94a3b8',
+              fontWeight: 'bold',
+              '&:hover': {
+                color: '#e2e8f0',
+                backgroundColor: 'rgba(255, 255, 255, 0.05)'
+              }
+            }}
+          >
+            Cancel
+          </Button>
           <Button 
             onClick={handleShare}
             variant="contained"
-            color="primary"
-            sx={{
-              background: 'linear-gradient(45deg, #ff9e00, #ff6d00)',
-              fontWeight: 'bold',
-              borderRadius: 4
-            }}
+            sx={buttonStyle}
           >
             Share Snippet
           </Button>
@@ -359,12 +851,23 @@ function EditorPage() {
 
       {/* Snackbar for notifications */}
       <Snackbar
-        open={snackbarOpen}
-        autoHideDuration={3000}
-        onClose={() => setSnackbarOpen(false)}
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
       >
-        <MuiAlert severity="success" variant="filled" onClose={() => setSnackbarOpen(false)}>
-          Snippet shared successfully!
+        <MuiAlert 
+          elevation={6} 
+          variant="filled" 
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
+          severity={snackbar.severity}
+          sx={{ 
+            borderRadius: '12px',
+            fontWeight: 'bold',
+            alignItems: 'center'
+          }}
+        >
+          {snackbar.message}
         </MuiAlert>
       </Snackbar>
     </div>
