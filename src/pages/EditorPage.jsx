@@ -23,7 +23,8 @@ import {
   useMediaQuery,
   Menu,
   Fade,
-  Divider
+  Divider,
+  CircularProgress
 } from '@mui/material';
 import MuiAlert from '@mui/material/Alert';
 import {
@@ -35,9 +36,6 @@ import {
 import { FaJava } from 'react-icons/fa';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import MenuIcon from '@mui/icons-material/Menu';
-import { useAuthState } from 'react-firebase-hooks/auth';
-import { auth, database } from '../firebase/config';
-import { ref, push } from 'firebase/database';
 import { useNavigate } from 'react-router-dom';
 
 const API_URL = 'https://emkc.org/api/v2/piston/execute';
@@ -58,7 +56,6 @@ const LANGUAGES = [
   { id: 'php', name: 'PHP', Icon: SiPhp, color: '#4F5D95' }
 ];
 
-// Common button style configuration
 const buttonStyle = {
   background: 'linear-gradient(45deg, #6366f1, #8b5cf6)',
   color: 'white',
@@ -80,18 +77,17 @@ const buttonStyle = {
   }
 };
 
-function EditorPage() {
+function DemoEditorPage() {
   const [code, setCode] = useState(DEFAULT_CODE.javascript);
   const [language, setLanguage] = useState('javascript');
   const [fontSize, setFontSize] = useState(14);
   const [output, setOutput] = useState('');
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
-  const [snippetTitle, setSnippetTitle] = useState('');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [user] = useAuthState(auth);
+  const [runUsed, setRunUsed] = useState(false);
+  const [showSignupPrompt, setShowSignupPrompt] = useState(false);
   const navigate = useNavigate();
   
   const isSmallScreen = useMediaQuery('(max-width:900px)');
@@ -119,9 +115,21 @@ function EditorPage() {
         });
       }
     }
-  }, [user]);
+  }, []);
 
   const handleRunCode = async () => {
+    const runUsedlocal = localStorage.getItem('runUsed') === 'true';
+    console.log('Run used:', runUsed, 'Local storage run used:', runUsedlocal);
+    
+    if (runUsed || runUsedlocal) {
+      setSnackbar({
+        open: true,
+        message: 'You can run code only once in demo mode',
+        severity: 'warning'
+      });
+      return;
+    }
+    
     setLoading(true);
     setOutput('');
     setStatus(null);
@@ -134,98 +142,17 @@ function EditorPage() {
 
       setOutput(response.data.run.output || 'No output available');
       setStatus(response.data.run.code === 0 ? 'success' : 'error');
+      setRunUsed(true);
+      localStorage.setItem('runUsed', 'true');
+      setShowSignupPrompt(true);
     } catch (error) {
       setOutput(`Error: ${error.response?.data?.message || error.message}`);
       setStatus('error');
+      setRunUsed(true);
+      localStorage.setItem('runUsed', 'true');
+      setShowSignupPrompt(true);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleSave = async () => {
-    if (!user) {
-      setSnackbar({
-        open: true,
-        message: 'Please sign in to save snippets',
-        severity: 'warning'
-      });
-      return;
-    }
-    
-    const snippetData = {
-      title: `snippet of ${language} on ${new Date().toLocaleString()}`,
-      code,
-      language,
-      timestamp: Date.now(),
-    };
-
-    try {
-      await push(ref(database, `userSnippets/${user.uid}`), snippetData);
-      setSnackbar({
-        open: true,
-        message: 'Snippet saved successfully!',
-        severity: 'success'
-      });
-    } catch (error) {
-      console.error("Error saving snippet:", error);
-      setOutput(`Error saving: ${error.message}`);
-      setSnackbar({
-        open: true,
-        message: 'Failed to save snippet',
-        severity: 'error'
-      });
-    }
-  };
-
-  const handleShare = async () => {
-    if (!snippetTitle.trim()) {
-      setSnackbar({
-        open: true,
-        message: 'Please enter a title for your snippet',
-        severity: 'warning'
-      });
-      return;
-    }
-
-    if (!user) {
-      setSnackbar({
-        open: true,
-        message: 'Please sign in to share snippets',
-        severity: 'warning'
-      });
-      return;
-    }
-
-    const selectedLang = LANGUAGES.find(lang => lang.id === language);
-
-    const snippetData = {
-      title: snippetTitle.trim(),
-      code: code.trim(),
-      language,
-      languageName: selectedLang?.name || language,
-      stars: {}, 
-      author: user?.displayName || 'Anonymous',
-      avatar: user?.photoURL || '',
-      userId: user?.uid || '',
-      timestamp: Date.now(),
-    };
-
-    try {
-      await push(ref(database, 'sharedSnippets'), snippetData);
-      setShareDialogOpen(false);
-      setSnippetTitle('');
-      setSnackbar({
-        open: true,
-        message: 'Snippet shared successfully!',
-        severity: 'success'
-      });
-    } catch (error) {
-      console.error("Error sharing snippet:", error);
-      setSnackbar({
-        open: true,
-        message: 'Failed to share snippet',
-        severity: 'error'
-      });
     }
   };
 
@@ -253,10 +180,28 @@ function EditorPage() {
     });
   };
 
+  const handleSignupRedirect = () => {
+    navigate('/signup');
+  };
+
   const currentLanguage = LANGUAGES.find(lang => lang.id === language);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: '#000000' }}>
+      <Box sx={{ 
+        backgroundColor: '#6366f1', 
+        color: 'white', 
+        textAlign: 'center', 
+        py: 1.5,
+        position: 'sticky',
+        top: 0,
+        zIndex: 1100
+      }}>
+        <Typography variant="body1" sx={{ fontWeight: 500 }}>
+          Demo Mode: Run code only once
+        </Typography>
+      </Box>
+      
       <AppBar position="static" sx={{ 
         backgroundColor: '#000000',
         boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
@@ -297,7 +242,7 @@ function EditorPage() {
               }}
               onClick={() => navigate('/')}
             >
-              CodeShare
+              CodeShare Demo
             </Typography>
           </Box>
 
@@ -433,33 +378,11 @@ function EditorPage() {
 
             <Button 
               onClick={handleRunCode} 
-              disabled={loading} 
+              disabled={loading || runUsed} 
               variant="contained" 
               sx={buttonStyle}
             >
-              {loading ? 'Running...' : 'Run'}
-            </Button>
-
-            <Button 
-              onClick={handleSave} 
-              variant="contained" 
-              sx={{
-                ...buttonStyle,
-                display: isMediumScreen ? 'none' : 'inline-flex'
-              }}
-            >
-              Save
-            </Button>
-
-            <Button 
-              onClick={() => setShareDialogOpen(true)} 
-              variant="contained" 
-              sx={{
-                ...buttonStyle,
-                background: 'linear-gradient(45deg, #ec4899, #8b5cf6)'
-              }}
-            >
-              Share
+              {loading ? <CircularProgress size={24} sx={{ color: 'white' }} /> : 'Run'}
             </Button>
           </Box>
         </Toolbar>
@@ -583,18 +506,6 @@ function EditorPage() {
           >
             Reset Code
           </Button>
-
-          <Button 
-            fullWidth
-            onClick={handleSave} 
-            variant="contained" 
-            sx={{
-              ...buttonStyle,
-              mb: 1
-            }}
-          >
-            Save Snippet
-          </Button>
         </Box>
       </Menu>
 
@@ -645,7 +556,8 @@ function EditorPage() {
               scrollbar: {
                 vertical: 'auto',
                 horizontal: 'auto'
-              }
+              },
+              readOnly: runUsed
             }}
           />
         </Box>
@@ -708,6 +620,8 @@ function EditorPage() {
             p: 2, 
             overflow: 'auto',
             backgroundColor: '#000000',
+            display: 'flex',
+            flexDirection: 'column'
           }}>
             <pre style={{
               color: '#e2e8f0',
@@ -715,10 +629,47 @@ function EditorPage() {
               wordBreak: 'break-word',
               fontFamily: "'Fira Code', monospace",
               fontSize: '0.9rem',
-              lineHeight: 1.5
+              lineHeight: 1.5,
+              flexGrow: 1
             }}>
               {output || (loading ? 'Running code...' : 'Output will appear here')}
             </pre>
+            
+            {showSignupPrompt && (
+              <Box sx={{
+                mt: 3,
+                p: 3,
+                borderRadius: '8px',
+                background: 'linear-gradient(to right, #1e3c72, #2a5298)',
+                textAlign: 'center'
+              }}>
+                <Typography variant="h6" sx={{ color: 'white', mb: 1 }}>
+                  Demo Run Complete!
+                </Typography>
+                <Typography variant="body2" sx={{ color: '#e0e7ff', mb: 2 }}>
+                  You've used your one-time demo execution. Sign up for full access to run code anytime!
+                </Typography>
+                <Button 
+                  variant="contained" 
+                  onClick={handleSignupRedirect}
+                  sx={{
+                    background: 'linear-gradient(45deg, #4ade80, #22c55e)',
+                    color: 'white',
+                    fontWeight: 'bold',
+                    borderRadius: '20px',
+                    px: 4,
+                    py: 1,
+                    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.2)',
+                    '&:hover': {
+                      background: 'linear-gradient(45deg, #22c55e, #16a34a)',
+                      transform: 'translateY(-2px)'
+                    }
+                  }}
+                >
+                  Get Started Now
+                </Button>
+              </Box>
+            )}
           </Box>
         </Box>
       </Box>
@@ -736,7 +687,7 @@ function EditorPage() {
           <Button 
             variant="contained"
             onClick={handleRunCode}
-            disabled={loading}
+            disabled={loading || runUsed}
             sx={{
               ...buttonStyle,
               minWidth: 'auto',
@@ -746,108 +697,10 @@ function EditorPage() {
               height: 56
             }}
           >
-            {loading ? '...' : 'Run'}
-          </Button>
-          
-          <Button 
-            variant="contained"
-            onClick={() => setShareDialogOpen(true)}
-            sx={{
-              ...buttonStyle,
-              background: 'linear-gradient(45deg, #ec4899, #8b5cf6)',
-              minWidth: 'auto',
-              padding: '10px 16px',
-              borderRadius: '50%',
-              width: 56,
-              height: 56
-            }}
-          >
-            Share
+            {loading ? <CircularProgress size={24} sx={{ color: 'white' }} /> : 'Run'}
           </Button>
         </Box>
       )}
-
-      {/* Share Dialog */}
-      <Dialog 
-        open={shareDialogOpen} 
-        onClose={() => setShareDialogOpen(false)} 
-        sx={{ 
-          '& .MuiDialog-paper': { 
-            backgroundColor: '#1e293b', 
-            color: '#f0f0f0', 
-            boxShadow: '0 0 20px rgba(139, 92, 246, 0.3)',
-            borderRadius: '12px',
-            width: isSmallScreen ? '90%' : '400px',
-            maxWidth: '90vw'
-          } 
-        }}
-      >
-        <DialogTitle sx={{ 
-          background: 'linear-gradient(45deg, #6366f1, #8b5cf6)',
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent',
-          fontWeight: 'bold',
-          fontSize: isSmallScreen ? '1.1rem' : '1.25rem',
-          textAlign: 'center'
-        }}>
-          Share Your Code Snippet
-        </DialogTitle>
-        <DialogContent sx={{ py: 3 }}>
-          <TextField
-            autoFocus
-            margin="dense"
-            label="Snippet Title"
-            fullWidth
-            value={snippetTitle}
-            onChange={(e) => setSnippetTitle(e.target.value)}
-            sx={{ 
-              mb: 2,
-              '& .MuiInputBase-input': {
-                color: '#e2e8f0'
-              },
-              '& .MuiInputLabel-root': {
-                color: '#94a3b8'
-              },
-              '& .MuiOutlinedInput-root': {
-                '& fieldset': {
-                  borderColor: '#334155'
-                },
-                '&:hover fieldset': {
-                  borderColor: '#6366f1'
-                },
-                '&.Mui-focused fieldset': {
-                  borderColor: '#8b5cf6'
-                }
-              }
-            }}
-          />
-          <Typography variant="body2" sx={{ color: '#94a3b8', mt: 1 }}>
-            This will be shared publicly on the community page
-          </Typography>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, py: 2, borderTop: '1px solid #334155' }}>
-          <Button 
-            onClick={() => setShareDialogOpen(false)} 
-            sx={{
-              color: '#94a3b8',
-              fontWeight: 'bold',
-              '&:hover': {
-                color: '#e2e8f0',
-                backgroundColor: 'rgba(255, 255, 255, 0.05)'
-              }
-            }}
-          >
-            Cancel
-          </Button>
-          <Button 
-            onClick={handleShare}
-            variant="contained"
-            sx={buttonStyle}
-          >
-            Share Snippet
-          </Button>
-        </DialogActions>
-      </Dialog>
 
       {/* Snackbar for notifications */}
       <Snackbar
@@ -861,7 +714,7 @@ function EditorPage() {
           variant="filled" 
           onClose={() => setSnackbar({ ...snackbar, open: false })}
           severity={snackbar.severity}
-          sx={{ 
+          sx={{
             borderRadius: '12px',
             fontWeight: 'bold',
             alignItems: 'center'
@@ -874,4 +727,4 @@ function EditorPage() {
   );
 }
 
-export default EditorPage;
+export default DemoEditorPage;

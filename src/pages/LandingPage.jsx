@@ -64,6 +64,8 @@ const LandingPage = () => {
             <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', flexWrap: 'wrap' }}>
                 <Button
                 variant="contained"
+                component="a"
+                href="/editor"
                 size="large"
                 sx={{
                     px: { xs: 3, sm: 4 },
@@ -86,6 +88,8 @@ const LandingPage = () => {
 
                 <Button
                 variant="outlined"
+                component="a"
+                href="/demo"
                 size="large"
                 sx={{
                     px: { xs: 3, sm: 4 },
@@ -219,6 +223,8 @@ const LandingPage = () => {
 
             <Button
             variant="contained"
+            component="a"
+            href="/get-started"
             size="large"
             sx={{
                 px: { xs: 4, sm: 6 },

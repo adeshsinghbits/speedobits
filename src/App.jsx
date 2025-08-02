@@ -11,7 +11,7 @@ import { useAuthState } from 'react-firebase-hooks/auth';
 import ProfilePage from './pages/ProfilePage';
 import SnippetDetailPage from './pages/SnippetDetailPage';
 import SavedSnippetPage from './pages/SavedSnippetPage';
-
+import DemoEditorPage from './pages/DemoEditorPage';
 const theme = createTheme();
 
 // Protected Route Component
@@ -44,7 +44,7 @@ function App() {
           <Route path="/" element={<Layout user={user} />}>
             <Route index element={<LandingPage />} />
             <Route path="/get-started" element={<AuthPage />} />
-            
+            <Route path="/demo" element={<DemoEditorPage />} />
             {/* Protected routes */}
             <Route path="/editor" element={
               <ProtectedRoute>

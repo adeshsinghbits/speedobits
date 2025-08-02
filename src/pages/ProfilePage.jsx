@@ -22,6 +22,8 @@ import StarIcon from '@mui/icons-material/Star';
 import CodeIcon from '@mui/icons-material/Code';
 import CodeOffIcon from '@mui/icons-material/CodeOff';
 import { FaBookmark, FaStar } from 'react-icons/fa';
+import {logout} from '../firebase/auth';
+import LogoutIcon from '@mui/icons-material/Logout';
 
 const ProfilePage = () => {
   const [user] = useAuthState(auth);
@@ -156,6 +158,14 @@ const ProfilePage = () => {
               {user?.email}
             </Typography>
           </Grid>
+          <Button
+            variant="contained"
+            color="secondary"
+            startIcon={<LogoutIcon />}
+            onClick={() => logout(auth)}
+          >
+            Logout
+          </Button>
         </Grid>
       </Card>
 

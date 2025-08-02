@@ -122,6 +122,7 @@ const Navbar = () => {
       <AppBar
         position="sticky"
         sx={{
+          zIndex: theme.zIndex.drawer + 1,
           backgroundColor: '#000000',
           backdropFilter: 'blur(10px)',
           borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
@@ -192,7 +193,10 @@ const Navbar = () => {
                   component={Link}
                   to="/get-started"
                   sx={{
-                    ...gradientButtonStyles,
+                    borderRadius: 2,
+                    background: 'linear-gradient(45deg, #8e2de2, #4a00e0)',
+                    color: 'white',
+                    fontWeight: 'bold',
                     width: 'auto',
                     ml: 2,
                     px: 3,
