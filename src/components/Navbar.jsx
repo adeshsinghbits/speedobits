@@ -16,6 +16,7 @@ import {
   Avatar
 } from '@mui/material';
 import { Link, useLocation } from 'react-router-dom';
+import { FaGithub } from 'react-icons/fa';
 import MenuIcon from '@mui/icons-material/Menu';
 import CloseIcon from '@mui/icons-material/Close';
 import { useAuthState } from 'react-firebase-hooks/auth';
@@ -181,6 +182,23 @@ const Navbar = () => {
                   {item.label}
                 </Button>
               ))}
+              <Button
+                component={Link}
+                target="_blank"
+                to="https://github.com/adeshsinghbits/speedobits"
+                sx={{
+                  borderRadius: 2,
+                  background: 'transparent',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  color: 'white',
+                  fontWeight: 'bold',
+                  width: 'auto',
+                  px: 3,
+                }}
+              >
+                <FaGithub style={{ marginRight: 8 }} />
+                View Repo
+              </Button>
               {user ? (
                 <Button
                   component={Link}

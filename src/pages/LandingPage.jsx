@@ -17,6 +17,7 @@ import {
     Lock
 } from '@mui/icons-material';
 import  codeTyping from '../assets/Code-typing-pana.svg';
+import {Title, Meta } from 'react-head';
 
 const LandingPage = () => {
     return (
@@ -29,6 +30,8 @@ const LandingPage = () => {
             overflowX: 'hidden',
         }}
         >
+        <Title>SpeedoBits -HomePage</Title>
+        <Meta name="description" content="SpeedoBits is a real-time collaborative code editor with instant snippet sharing for developers and teams." />
         {/* Hero Section */}
         <Container maxWidth="lg" sx={{ pt: { xs: 8, sm: 10, md: 15 }, pb: { xs: 6, sm: 8, md: 10 } }}>
             <Box textAlign="center">

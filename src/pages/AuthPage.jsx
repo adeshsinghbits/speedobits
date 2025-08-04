@@ -17,6 +17,7 @@ import {
 } from '@mui/material';
 import GoogleIcon from '@mui/icons-material/Google';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import {Title, Meta } from 'react-head';
 
 const AuthPage = () => {
   const [user, loading] = useAuthState(auth);
@@ -67,6 +68,8 @@ const AuthPage = () => {
       alignItems: 'center',
       py: 8,
     }}>
+      <Title> SpeedoBits - Sign In</Title>
+      <Meta name="description" content="Sign in to SpeedoBits to access your personalized coding experience." />
       {/* Decorative elements */}
       <Box sx={{
         position: 'absolute',

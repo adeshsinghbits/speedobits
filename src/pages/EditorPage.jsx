@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
 import axios from 'axios';
-import { RxCrossCircled, RxCheckCircled } from "react-icons/rx";
+import { RxCrossCircled, RxCheckCircled, RxHamburgerMenu } from "react-icons/rx";
 import {
   AppBar,
   Toolbar,
@@ -21,10 +21,12 @@ import {
   Snackbar,
   Chip,
   useMediaQuery,
-  Menu,
-  Fade,
-  Divider,
-  CircularProgress
+  useTheme,
+  Popover,
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemText
 } from '@mui/material';
 import MuiAlert from '@mui/material/Alert';
 import {
@@ -35,8 +37,9 @@ import {
 } from 'react-icons/si';
 import { FaJava } from 'react-icons/fa';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
-import MenuIcon from '@mui/icons-material/Menu';
-import { useNavigate } from 'react-router-dom';
+import { useAuthState } from 'react-firebase-hooks/auth';
+import { auth, database } from '../firebase/config';
+import { ref, push } from 'firebase/database';
 
 const API_URL = 'https://emkc.org/api/v2/piston/execute';
 
@@ -57,41 +60,53 @@ const LANGUAGES = [
 ];
 
 const buttonStyle = {
-  background: 'linear-gradient(45deg, #6366f1, #8b5cf6)',
+  background: 'transparent',
   color: 'white',
   fontWeight: 'bold',
   borderRadius: '12px',
-  padding: '8px 20px',
+  border: '2px solid #8b5cf6',
+  padding: '8px 16px',
   textTransform: 'none',
   boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
   transition: 'all 0.3s ease',
   '&:hover': {
     transform: 'translateY(-2px)',
     boxShadow: '0 6px 8px rgba(0, 0, 0, 0.15)',
-    background: 'linear-gradient(45deg, #4f46e5, #7c3aed)'
+    background: '#8b5cf6'
   },
   '&:disabled': {
     background: '#94a3b8',
     transform: 'none',
-    boxShadow: 'none'
+    boxShadow: 'none',
+    cursor: 'not-allowed',
   }
 };
 
-function DemoEditorPage() {
+function EditorPage({demoMode = false}) {
   const [code, setCode] = useState(DEFAULT_CODE.javascript);
   const [language, setLanguage] = useState('javascript');
   const [fontSize, setFontSize] = useState(14);
   const [output, setOutput] = useState('');
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [runUsed, setRunUsed] = useState(false);
-  const [showSignupPrompt, setShowSignupPrompt] = useState(false);
-  const navigate = useNavigate();
+  const [snippetTitle, setSnippetTitle] = useState('');
+  const [user] = useAuthState(auth);
+  const [anchorEl, setAnchorEl] = useState(null);
   
-  const isSmallScreen = useMediaQuery('(max-width:900px)');
-  const isMediumScreen = useMediaQuery('(max-width:1200px)');
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
+  const handleMenuOpen = (event) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleMenuClose = () => {
+    setAnchorEl(null);
+  };
+
+  const menuOpen = Boolean(anchorEl);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -115,48 +130,142 @@ function DemoEditorPage() {
         });
       }
     }
-  }, []);
+  }, [user]);
 
   const handleRunCode = async () => {
-    const runUsedlocal = localStorage.getItem('runUsed') === 'true';
-    console.log('Run used:', runUsed, 'Local storage run used:', runUsedlocal);
-    
-    if (runUsed || runUsedlocal) {
+
+  setLoading(true);
+  setOutput('');
+  setStatus(null);
+
+  try {
+    const response = await axios.post(API_URL, {
+      language,
+      version: '*',
+      files: [{ content: code }]
+    });
+
+    setOutput(response.data.run.output || 'No output available');
+    setStatus(response.data.run.code === 0 ? 'success' : 'error');
+  } catch (error) {
+    setOutput(`Error: ${error.response?.data?.message || error.message}`);
+    setStatus('error');
+  } finally {
+    setLoading(false);
+  }
+};
+
+  const handleSave = async () => {
+    if (demoMode) {
+    setSnackbar({
+      open: true,
+      message: 'Saving is disabled in demo mode',
+      severity: 'warning'
+    });
+    return;
+  }
+    if (!user) {
       setSnackbar({
         open: true,
-        message: 'You can run code only once in demo mode',
+        message: 'Please sign in to save snippets',
         severity: 'warning'
       });
       return;
     }
     
-    setLoading(true);
-    setOutput('');
-    setStatus(null);
-    try {
-      const response = await axios.post(API_URL, {
-        language,
-        version: '*',
-        files: [{ content: code }]
-      });
+    const snippetData = {
+      title: `snippet of ${language} on ${new Date().toLocaleString()}`,
+      code,
+      language,
+      timestamp: Date.now(),
+    };
 
-      setOutput(response.data.run.output || 'No output available');
-      setStatus(response.data.run.code === 0 ? 'success' : 'error');
-      setRunUsed(true);
-      localStorage.setItem('runUsed', 'true');
-      setShowSignupPrompt(true);
+    try {
+      await push(ref(database, `userSnippets/${user.uid}`), snippetData);
+      setSnackbar({
+        open: true,
+        message: 'Snippet saved successfully!',
+        severity: 'success'
+      });
     } catch (error) {
-      setOutput(`Error: ${error.response?.data?.message || error.message}`);
-      setStatus('error');
-      setRunUsed(true);
-      localStorage.setItem('runUsed', 'true');
-      setShowSignupPrompt(true);
-    } finally {
-      setLoading(false);
+      console.error("Error saving snippet:", error);
+      setSnackbar({
+        open: true,
+        message: 'Failed to save snippet',
+        severity: 'error'
+      });
+    }
+  };
+
+  const handleShare = async () => {
+    if (demoMode) {
+    setSnackbar({
+      open: true,
+      message: 'Sharing is disabled in demo mode',
+      severity: 'warning'
+    });
+    return;
+  }
+    if (!snippetTitle.trim()) {
+      setSnackbar({
+        open: true,
+        message: 'Please enter a title for your snippet',
+        severity: 'warning'
+      });
+      return;
+    }
+
+    if (!user) {
+      setSnackbar({
+        open: true,
+        message: 'Please sign in to share snippets',
+        severity: 'warning'
+      });
+      return;
+    }
+
+    const selectedLang = LANGUAGES.find(lang => lang.id === language);
+
+    const snippetData = {
+      title: snippetTitle.trim(),
+      code: code.trim(),
+      language,
+      languageName: selectedLang?.name || language,
+      stars: {}, 
+      author: user?.displayName || 'Anonymous',
+      avatar: user?.photoURL || '',
+      userId: user?.uid || '',
+      timestamp: Date.now(),
+    };
+
+    try {
+      await push(ref(database, 'sharedSnippets'), snippetData);
+      setShareDialogOpen(false);
+      setSnippetTitle('');
+      setSnackbar({
+        open: true,
+        message: 'Snippet shared successfully!',
+        severity: 'success'
+      });
+    } catch (error) {
+      console.error("Error sharing snippet:", error);
+      setSnackbar({
+        open: true,
+        message: 'Failed to share snippet',
+        severity: 'error'
+      });
     }
   };
 
   const handleLanguageChange = (e) => {
+    if (demoMode) {
+      setSnackbar({
+        open: true,
+        message: 'Language change is disabled in demo mode',
+        severity: 'warning'
+      });
+      return;
+    }
     const newLang = e.target.value;
     setLanguage(newLang);
     setCode(DEFAULT_CODE[newLang] || '');
@@ -180,80 +289,31 @@ function DemoEditorPage() {
     });
   };
 
-  const handleSignupRedirect = () => {
-    navigate('/signup');
-  };
-
   const currentLanguage = LANGUAGES.find(lang => lang.id === language);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: '#000000' }}>
-      <Box sx={{ 
-        backgroundColor: '#6366f1', 
-        color: 'white', 
-        textAlign: 'center', 
-        py: 1.5,
-        position: 'sticky',
-        top: 0,
-        zIndex: 1100
-      }}>
-        <Typography variant="body1" sx={{ fontWeight: 500 }}>
-          Demo Mode: Run code only once
-        </Typography>
-      </Box>
-      
+    <div style={{ 
+      display: 'flex', 
+      flexDirection: 'column', 
+      height: '100vh', 
+      backgroundColor: '#0f172a',
+      overflow: 'hidden'
+    }}>
       <AppBar position="static" sx={{ 
-        backgroundColor: '#000000',
+        background: 'linear-gradient(45deg, #1e293b, #0f172a)',
         boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
       }}>
         <Toolbar sx={{ 
           justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          py: isSmallScreen ? 1 : 0,
-          gap: isSmallScreen ? 1 : 0
+          gap: 2
         }}>
-          <Box sx={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            flexGrow: isSmallScreen ? 1 : 0 
-          }}>
-            <IconButton
-              size="large"
-              edge="start"
-              color="inherit"
-              aria-label="menu"
-              sx={{ 
-                mr: 1,
-                display: isSmallScreen ? 'inline-flex' : 'none' 
-              }}
-              onClick={() => setMobileMenuOpen(true)}
-            >
-              <MenuIcon />
-            </IconButton>
-            <Typography 
-              variant="h6" 
-              sx={{ 
-                fontWeight: 'bold', 
-                cursor: 'pointer',
-                background: 'linear-gradient(45deg, #8b5cf6, #6366f1)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                fontSize: isSmallScreen ? '1.2rem' : '1.5rem'
-              }}
-              onClick={() => navigate('/')}
-            >
-              CodeShare Demo
-            </Typography>
-          </Box>
-
-          <Box sx={{ 
-            display: isSmallScreen ? 'none' : 'flex', 
-            alignItems: 'center', 
-            gap: 2,
-            flexWrap: 'wrap',
-            justifyContent: 'center',
-            my: isSmallScreen ? 1 : 0
-          }}>
+          {/* Language Selector - Always Visible */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            {!isMobile && (
+                      <Typography variant="body2" sx={{...buttonStyle, color: '#f0f0f0','&:hover': { color: '#8b5cf6' }}}>
+                        Language :
+                      </Typography>
+                    )}
             <Select
               value={language}
               onChange={handleLanguageChange}
@@ -263,6 +323,7 @@ function DemoEditorPage() {
                 minWidth: 160,
                 background: '#1e293b',
                 borderRadius: 3,
+                color: '#f0f0f0',
                 '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
                 '&:hover': {
                   boxShadow: `0 0 10px ${currentLanguage?.color || '#6366f1'}`
@@ -273,6 +334,7 @@ function DemoEditorPage() {
                   sx: {
                     borderRadius: 2,
                     background: '#1e293b',
+                    color: '#f0f0f0',
                     boxShadow: '0 5px 15px rgba(0, 0, 0, 0.5)'
                   }
                 }
@@ -281,18 +343,18 @@ function DemoEditorPage() {
                 const selectedLang = LANGUAGES.find(lang => lang.id === selected);
                 const Icon = selectedLang?.Icon;
                 return (
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <Avatar sx={{ 
                       bgcolor: '#0f172a', 
                       color: selectedLang?.color, 
-                      width: 28, 
-                      height: 28 
+                      width: 24, 
+                      height: 24 
                     }}>
-                      <Icon style={{ fontSize: 16 }} />
+                      <Icon style={{ fontSize: 14 }} />
                     </Avatar>
-                    <Typography variant="body2" sx={{ color: '#f0f0f0' }}>
-                      {selectedLang?.name}
-                    </Typography>
+                      <Typography variant="body1" sx={{ color: '#f0f0f0' }}>
+                        {selectedLang?.name}
+                      </Typography>
                   </Box>
                 );
               }}
@@ -306,7 +368,7 @@ function DemoEditorPage() {
                     sx={{
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 1.5,
+                      gap: 1,
                       '&:hover': {
                         background: `rgba(${parseInt(lang.color.slice(1, 3), 16)}, ${parseInt(lang.color.slice(3, 5), 16)}, ${parseInt(lang.color.slice(5, 7), 16)}, 0.1)`
                       }
@@ -315,212 +377,167 @@ function DemoEditorPage() {
                     <Avatar sx={{ 
                       bgcolor: '#0f172a', 
                       color: lang.color, 
-                      width: 28, 
-                      height: 28 
+                      width: 24, 
+                      height: 24 
                     }}>
-                      <Icon style={{ fontSize: 16 }} />
+                      <Icon style={{ fontSize: 14 }} />
                     </Avatar>
-                    <Typography variant="body1" sx={{ color: '#f0f0f0' }}>
+                    <Typography variant="body2" sx={{ color: '#f0f0f0' }}>
                       {lang.name}
                     </Typography>
                   </MenuItem>
                 );
               })}
             </Select>
-
-            <Box sx={{ 
-              width: 150, 
-              display: 'flex', 
-              alignItems: 'center',
-              minWidth: 120
-            }}>
-              <Typography variant="body2" sx={{ 
-                color: '#f0f0f0', 
-                mr: 1,
-                display: isMediumScreen ? 'none' : 'block'
-              }}>
-                Font:
-              </Typography>
-              <Slider
-                value={fontSize}
-                onChange={(e, value) => setFontSize(value)}
-                min={10}
-                max={24}
-                step={1}
-                sx={{ 
-                  color: '#8b5cf6',
-                  width: isMediumScreen ? 80 : 100,
-                  '& .MuiSlider-thumb': {
-                    width: 14,
-                    height: 14
+            <Button 
+            onClick={handleRunCode} 
+            disabled={loading} 
+            variant="contained" 
+            sx={{ 
+              ...buttonStyle, 
+              minWidth: isMobile ? '80px' : 'auto'
+            }}
+          >
+            {loading ? 'Running...' : 'Run'}
+          </Button>
+          </Box>
+          {/* Hamburger Menu on Mobile */}
+          {isMobile ? (
+            <>
+              <IconButton
+                onClick={handleMenuOpen}
+                sx={{ color: '#f0f0f0' }}
+              >
+                <RxHamburgerMenu />
+              </IconButton>
+              <Popover
+                open={menuOpen}
+                anchorEl={anchorEl}
+                onClose={handleMenuClose}
+                anchorOrigin={{
+                  vertical: 'bottom',
+                  horizontal: 'right',
+                }}
+                transformOrigin={{
+                  vertical: 'top',
+                  horizontal: 'right',
+                }}
+                sx={{
+                  '& .MuiPaper-root': {
+                    backgroundColor: '#1e293b',
+                    color: '#f0f0f0',
+                    borderRadius: '12px',
+                    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)'
                   }
                 }}
-              />
-              <Typography variant="body2" sx={{ 
-                color: '#f0f0f0', 
-                ml: 1,
-                minWidth: 30
-              }}>
-                {fontSize}px
-              </Typography>
+              >
+                <List>
+                  <ListItem button onClick={handleResetCode}>
+                    <ListItemText primary="Reset Code" />
+                  </ListItem>
+                  <ListItem disabled={demoMode} button onClick={handleSave}>
+                    <ListItemText primary="Save" />
+                  </ListItem>
+                  <ListItem disabled={demoMode} button onClick={() => {
+                    setShareDialogOpen(true);
+                    handleMenuClose();
+                  }}>
+                    <ListItemText primary="Share" />
+                  </ListItem>
+                  {!isMobile && (
+                    <ListItem>
+                      <ListItemText primary="Font Size" />
+                      <Slider
+                        value={fontSize}
+                        onChange={(e, value) => setFontSize(value)}
+                        min={10}
+                        max={24}
+                        step={1}
+                        sx={{ 
+                          color: '#8b5cf6',
+                          width: 100,
+                          '& .MuiSlider-thumb': {
+                            width: 12,
+                            height: 12
+                          }
+                        }}
+                      />
+                      <Typography variant="body2" sx={{ color: '#f0f0f0', ml: 1 }}>
+                        {fontSize}px
+                      </Typography>
+                    </ListItem>
+                  )}
+                </List>
+              </Popover>
+            </>
+          ) : (
+            /* Desktop Controls */
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mr: 2 }}>
+                <Typography variant="body2" sx={{ color: '#f0f0f0' }}>
+                  Font:
+                </Typography>
+                <Slider
+                  value={fontSize}
+                  onChange={(e, value) => setFontSize(value)}
+                  min={10}
+                  max={24}
+                  step={1}
+                  sx={{ 
+                    color: '#8b5cf6',
+                    width: 90,
+                    '& .MuiSlider-thumb': {
+                      width: 12,
+                      height: 12
+                    }
+                  }}
+                />
+                <Typography variant="body2" sx={{ color: '#f0f0f0' }}>
+                  {fontSize}px
+                </Typography>
+              </Box>
+              
+              <Button 
+                onClick={handleResetCode}
+                variant="contained" 
+                sx={buttonStyle}
+              >
+                Reset
+              </Button>
+              <Button 
+                onClick={handleSave} 
+                variant="contained" 
+                sx={buttonStyle}
+                disabled={demoMode}
+              >
+                Save
+              </Button>
+              <Button 
+                onClick={() => setShareDialogOpen(true)} 
+                variant="contained" 
+                sx={buttonStyle}
+                disabled={demoMode}
+              >
+                Share
+              </Button>
             </Box>
-
-            <Button 
-              onClick={handleResetCode}
-              variant="contained" 
-              sx={{
-                ...buttonStyle,
-                display: isMediumScreen ? 'none' : 'inline-flex'
-              }}
-            >
-              Reset
-            </Button>
-
-            <Button 
-              onClick={handleRunCode} 
-              disabled={loading || runUsed} 
-              variant="contained" 
-              sx={buttonStyle}
-            >
-              {loading ? <CircularProgress size={24} sx={{ color: 'white' }} /> : 'Run'}
-            </Button>
-          </Box>
+          )}
         </Toolbar>
       </AppBar>
 
-      {/* Mobile Menu */}
-      <Menu
-        anchorOrigin={{
-          vertical: 'top',
-          horizontal: 'right',
-        }}
-        transformOrigin={{
-          vertical: 'top',
-          horizontal: 'right',
-        }}
-        open={mobileMenuOpen}
-        onClose={() => setMobileMenuOpen(false)}
-        TransitionComponent={Fade}
-        sx={{ 
-          mt: 6,
-          '& .MuiPaper-root': {
-            background: '#000000',
-            borderRadius: '12px',
-            minWidth: 200
-          }
-        }}
-      >
-        <Box sx={{ p: 2 }}>
-          <Typography variant="subtitle1" sx={{ 
-            color: '#e2e8f0', 
-            fontWeight: 'bold',
-            mb: 1
-          }}>
-            Language
-          </Typography>
-          <Select
-            value={language}
-            onChange={handleLanguageChange}
-            fullWidth
-            size="small"
-            sx={{
-              background: '#0f172a',
-              borderRadius: 3,
-              mb: 2,
-              '& .MuiOutlinedInput-notchedOutline': { border: 'none' }
-            }}
-            renderValue={(selected) => {
-              const selectedLang = LANGUAGES.find(lang => lang.id === selected);
-              return (
-                <Typography variant="body2" sx={{ color: '#f0f0f0' }}>
-                  {selectedLang?.name}
-                </Typography>
-              );
-            }}
-          >
-            {LANGUAGES.map((lang) => {
-              const Icon = lang.Icon;
-              return (
-                <MenuItem
-                  key={lang.id}
-                  value={lang.id}
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 1.5,
-                    '&:hover': {
-                      background: `rgba(${parseInt(lang.color.slice(1, 3), 16)}, ${parseInt(lang.color.slice(3, 5), 16)}, ${parseInt(lang.color.slice(5, 7), 16)}, 0.1)`
-                    }
-                  }}
-                >
-                  <Avatar sx={{ 
-                    bgcolor: '#0f172a', 
-                    color: lang.color, 
-                    width: 28, 
-                    height: 28 
-                  }}>
-                    <Icon style={{ fontSize: 16 }} />
-                  </Avatar>
-                  <Typography variant="body1" sx={{ color: '#f0f0f0' }}>
-                    {lang.name}
-                  </Typography>
-                </MenuItem>
-              );
-            })}
-          </Select>
-
-          <Typography variant="subtitle1" sx={{ 
-            color: '#e2e8f0', 
-            fontWeight: 'bold',
-            mb: 1
-          }}>
-            Font Size: {fontSize}px
-          </Typography>
-          <Slider
-            value={fontSize}
-            onChange={(e, value) => setFontSize(value)}
-            min={10}
-            max={24}
-            step={1}
-            sx={{ 
-              color: '#8b5cf6',
-              width: '100%',
-              mb: 2,
-              '& .MuiSlider-thumb': {
-                width: 14,
-                height: 14
-              }
-            }}
-          />
-
-          <Divider sx={{ my: 1, bgcolor: '#334155' }} />
-
-          <Button 
-            fullWidth
-            onClick={handleResetCode}
-            variant="contained" 
-            sx={{
-              ...buttonStyle,
-              mb: 1
-            }}
-          >
-            Reset Code
-          </Button>
-        </Box>
-      </Menu>
-
+      {/* Rest of the component remains the same */}
       <Box sx={{ 
         flex: 1, 
         display: 'flex', 
-        overflow: 'hidden',
-        flexDirection: isSmallScreen ? 'column' : 'row'
+        flexDirection: isMobile ? 'column' : 'row', 
+        overflow: 'hidden'
       }}>
         <Box sx={{ 
-          width: isSmallScreen ? '100%' : (isMediumScreen ? '60%' : '70%'),
-          height: isSmallScreen ? '50vh' : 'auto',
-          borderRight: isSmallScreen ? 'none' : '1px solid #334155',
-          borderBottom: isSmallScreen ? '1px solid #334155' : 'none',
-          position: 'relative'
+          width: isMobile ? '100%' : '70%', 
+          height: isMobile ? '50vh' : '100%', 
+          position: 'relative',
+          borderBottom: isMobile ? '1px solid #334155' : 'none',
+          borderRight: !isMobile ? '1px solid #334155' : 'none'
         }}>
           <Box sx={{
             position: 'absolute',
@@ -556,41 +573,45 @@ function DemoEditorPage() {
               scrollbar: {
                 vertical: 'auto',
                 horizontal: 'auto'
-              },
-              readOnly: runUsed
+              }
             }}
           />
         </Box>
 
         <Box sx={{ 
-          width: isSmallScreen ? '100%' : (isMediumScreen ? '40%' : '30%'),
-          height: isSmallScreen ? '50vh' : 'auto',
+          width: isMobile ? '100%' : '30%', 
+          height: isMobile ? '50vh' : '100%',
           display: 'flex', 
-          flexDirection: 'column',
+          flexDirection: 'column', 
           backgroundColor: '#0f172a',
-          borderLeft: isSmallScreen ? 'none' : '1px solid #334155'
+          borderLeft: !isMobile ? '1px solid #334155' : 'none'
         }}>
           <Box sx={{
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            p: 2,
+            p: 1.5,
             borderBottom: '1px solid #334155',
-            backgroundColor: '#000000',
+            backgroundColor: '#1e293b'
           }}>
-            <Typography variant="h6" sx={{ color: '#f0f0f0', fontWeight: 'bold' }}>
+            <Typography variant={isMobile ? "subtitle2" : "h6"} sx={{ 
+              color: '#f0f0f0', 
+              fontWeight: 'bold',
+              whiteSpace: 'nowrap'
+            }}>
               Output
             </Typography>
-            <Box sx={{ display: 'flex', gap: 1 }}>
+            <Box sx={{ display: 'flex', gap: 0.5 }}>
               {status === 'success' && (
                 <Chip 
                   icon={<RxCheckCircled />} 
                   label="Success" 
                   size="small" 
                   sx={{ 
-                    background: '000000', 
+                    background: 'rgba(16, 185, 129, 0.15)', 
                     color: '#10b981',
-                    fontWeight: 'bold'
+                    fontWeight: 'bold',
+                    fontSize: isMobile ? '0.7rem' : '0.8rem'
                   }} 
                 />
               )}
@@ -602,7 +623,8 @@ function DemoEditorPage() {
                   sx={{ 
                     background: 'rgba(239, 68, 68, 0.15)', 
                     color: '#ef4444',
-                    fontWeight: 'bold'
+                    fontWeight: 'bold',
+                    fontSize: isMobile ? '0.7rem' : '0.8rem'
                   }} 
                 />
               )}
@@ -611,96 +633,129 @@ function DemoEditorPage() {
                 size="small"
                 sx={{ color: '#94a3b8', '&:hover': { color: '#6366f1' } }}
               >
-                <ContentCopyIcon fontSize="small" />
+                <ContentCopyIcon fontSize={isMobile ? "small" : "medium"} />
               </IconButton>
             </Box>
           </Box>
           <Box sx={{ 
             flex: 1, 
-            p: 2, 
+            p: 1.5, 
             overflow: 'auto',
-            backgroundColor: '#000000',
-            display: 'flex',
-            flexDirection: 'column'
+            backgroundColor: '#0f172a'
           }}>
             <pre style={{
               color: '#e2e8f0',
               whiteSpace: 'pre-wrap',
               wordBreak: 'break-word',
               fontFamily: "'Fira Code', monospace",
-              fontSize: '0.9rem',
+              fontSize: isMobile ? '0.8rem' : '0.9rem',
               lineHeight: 1.5,
-              flexGrow: 1
+              margin: 0
             }}>
               {output || (loading ? 'Running code...' : 'Output will appear here')}
             </pre>
-            
-            {showSignupPrompt && (
-              <Box sx={{
-                mt: 3,
-                p: 3,
-                borderRadius: '8px',
-                background: 'linear-gradient(to right, #1e3c72, #2a5298)',
-                textAlign: 'center'
-              }}>
-                <Typography variant="h6" sx={{ color: 'white', mb: 1 }}>
-                  Demo Run Complete!
-                </Typography>
-                <Typography variant="body2" sx={{ color: '#e0e7ff', mb: 2 }}>
-                  You've used your one-time demo execution. Sign up for full access to run code anytime!
-                </Typography>
-                <Button 
-                  variant="contained" 
-                  onClick={handleSignupRedirect}
-                  sx={{
-                    background: 'linear-gradient(45deg, #4ade80, #22c55e)',
-                    color: 'white',
-                    fontWeight: 'bold',
-                    borderRadius: '20px',
-                    px: 4,
-                    py: 1,
-                    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.2)',
-                    '&:hover': {
-                      background: 'linear-gradient(45deg, #22c55e, #16a34a)',
-                      transform: 'translateY(-2px)'
-                    }
-                  }}
-                >
-                  Get Started Now
-                </Button>
-              </Box>
-            )}
           </Box>
         </Box>
       </Box>
 
-      {/* Floating action buttons for mobile */}
-      {isSmallScreen && (
-        <Box sx={{
-          position: 'fixed',
-          bottom: 20,
-          right: 20,
-          display: 'flex',
-          gap: 1,
-          zIndex: 1000
+      {/* Share Dialog */}
+      <Dialog 
+        open={shareDialogOpen} 
+        onClose={() => setShareDialogOpen(false)} 
+        sx={{ 
+          '& .MuiDialog-paper': { 
+            backgroundColor: '#1e293b', 
+            color: '#f0f0f0', 
+            boxShadow: '0 0 20px rgba(139, 92, 246, 0.3)',
+            borderRadius: '12px',
+            width: isMobile ? '90vw' : '400px',
+            maxWidth: '90vw'
+          } 
+        }}
+      >
+        <DialogTitle sx={{ 
+          background: 'linear-gradient(45deg, #6366f1, #8b5cf6)',
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
+          fontWeight: 'bold',
+          fontSize: isMobile ? '1.1rem' : '1.25rem',
+          textAlign: 'center',
+          py: 2
+        }}>
+          Share Your Code Snippet
+        </DialogTitle>
+        <DialogContent sx={{ py: 1 }}>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Snippet Title"
+            fullWidth
+            value={snippetTitle}
+            onChange={(e) => setSnippetTitle(e.target.value)}
+            sx={{ 
+              mb: 2,
+              mt: 1,
+              '& .MuiInputBase-input': {
+                color: '#e2e8f0',
+                fontSize: isMobile ? '0.9rem' : '1rem'
+              },
+              '& .MuiInputLabel-root': {
+                color: '#94a3b8',
+                fontSize: isMobile ? '0.9rem' : '1rem'
+              },
+              '& .MuiOutlinedInput-root': {
+                '& fieldset': {
+                  borderColor: '#334155'
+                },
+                '&:hover fieldset': {
+                  borderColor: '#6366f1'
+                },
+                '&.Mui-focused fieldset': {
+                  borderColor: '#8b5cf6'
+                }
+              }
+            }}
+          />
+          <Typography variant="body2" sx={{ 
+            color: '#94a3b8', 
+            fontSize: isMobile ? '0.8rem' : '0.9rem'
+          }}>
+            This will be shared publicly on the community page
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ 
+          px: 2, 
+          py: 1.5, 
+          borderTop: '1px solid #334155',
+          justifyContent: 'space-between'
         }}>
           <Button 
-            variant="contained"
-            onClick={handleRunCode}
-            disabled={loading || runUsed}
+            onClick={() => setShareDialogOpen(false)} 
             sx={{
-              ...buttonStyle,
-              minWidth: 'auto',
-              padding: '10px 16px',
-              borderRadius: '50%',
-              width: 56,
-              height: 56
+              color: '#94a3b8',
+              fontWeight: 'bold',
+              fontSize: isMobile ? '0.8rem' : '0.9rem',
+              '&:hover': {
+                color: '#e2e8f0',
+                backgroundColor: 'rgba(255, 255, 255, 0.05)'
+              }
             }}
           >
-            {loading ? <CircularProgress size={24} sx={{ color: 'white' }} /> : 'Run'}
+            Cancel
           </Button>
-        </Box>
-      )}
+          <Button 
+            onClick={handleShare}
+            variant="contained"
+            sx={{
+              ...buttonStyle,
+              padding: isMobile ? '6px 14px' : '8px 20px',
+              fontSize: isMobile ? '0.8rem' : '0.9rem'
+            }}
+          >
+            Share Snippet
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Snackbar for notifications */}
       <Snackbar
@@ -714,10 +769,11 @@ function DemoEditorPage() {
           variant="filled" 
           onClose={() => setSnackbar({ ...snackbar, open: false })}
           severity={snackbar.severity}
-          sx={{
+          sx={{ 
             borderRadius: '12px',
             fontWeight: 'bold',
-            alignItems: 'center'
+            alignItems: 'center',
+            fontSize: isMobile ? '0.9rem' : '1rem'
           }}
         >
           {snackbar.message}
@@ -727,4 +783,4 @@ function DemoEditorPage() {
   );
 }
 
-export default DemoEditorPage;
+export default EditorPage;
